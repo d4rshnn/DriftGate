@@ -19,25 +19,73 @@
     { "t": 27,  "screen": "timeline",  "agent": "hr-assistant-02", "text": "Generated onboarding checklist for new hire", "tags": [], "score": 3, "status": "healthy", "silent": true },
     { "t": 30,  "screen": "timeline",  "agent": "procurement-01", "text": "Read supplier_quote.pdf (external)", "tags": ["UNTRUSTED INPUT"], "score": 14, "status": "watching" },
     { "t": 45,  "screen": "timeline",  "agent": "procurement-01", "text": "Tried to read hr/salaries.xlsx", "tags": ["OUT OF ROLE"], "score": 85, "status": "restricted" },
-    { "t": 55,  "screen": "alert",     "agent": "procurement-01", "text": "Action blocked, token reduced to role minimum", "tags": [], "score": 85, "status": "restricted" },
+    { "t": 55,  "screen": "alert",     "agent": "procurement-01", "text": "Action blocked, token reduced to role minimum", "tags": [], "score": 85, "status": "restricted", "alertId": "a1" },
     { "t": 70,  "screen": "timeline",  "agent": "procurement-01", "text": "Touched canary file salary_backup.xlsx", "tags": ["CANARY HIT"], "score": 94, "status": "restricted" },
-    { "t": 85,  "screen": "timeline",  "agent": "procurement-01", "text": "POST to files-share.xyz", "tags": ["NEW DESTINATION"], "score": 97, "status": "quarantined" },
+    { "t": 85,  "screen": "timeline",  "agent": "procurement-01", "text": "POST to files-share.xyz", "tags": ["NEW DESTINATION"], "score": 97, "status": "quarantined", "alertId": "a2" },
     { "t": 100, "screen": "drift" },
     { "t": 125, "screen": "chain",     "agent": "procurement-01", "text": "Agent isolated, other agents unaffected", "tags": [], "score": 97, "status": "quarantined" }
   ],
-  "alert": {
-    "agent": "procurement-01",
-    "score": 85,
-    "severity": "High",
-    "reasons": [
-      { "text": "Outside role contract: HR data is blocked for Procurement", "points": 40 },
-      { "text": "Came right after reading untrusted supplier_quote.pdf", "points": 25 },
-      { "text": "Never seen for this role (learned baseline)", "points": 10 },
-      { "text": "AI judge: no job-related reason to read salaries", "points": 10 }
-    ],
-    "judgeNote": "Action does not fit a procurement task and matches an injection pattern.",
-    "response": "Restrict: action blocked, token reduced to role minimum, purchase work continues."
-  },
+  "alerts": [
+    {
+      "id": "a1",
+      "agent": "procurement-01",
+      "raisedAt": 55,
+      "score": 85,
+      "severity": "High",
+      "signals": [
+        { "name": "Role contract",    "fired": true,  "points": 40 },
+        { "name": "Taint tracking",   "fired": true,  "points": 25 },
+        { "name": "Learned baseline", "fired": true,  "points": 10 },
+        { "name": "Judge review",     "fired": true,  "points": 10 },
+        { "name": "Canary traps",     "fired": false, "points": 0  }
+      ],
+      "reasons": [
+        { "text": "Outside role contract: HR data is blocked for Procurement", "points": 40 },
+        { "text": "Came right after reading untrusted supplier_quote.pdf",      "points": 25 },
+        { "text": "Never seen for this role (learned baseline)",                "points": 10 },
+        { "text": "No job-related reason to read salaries",                     "points": 10 }
+      ],
+      "judgeNote": "Action does not fit a procurement task and matches an injection pattern.",
+      "response": "Restrict: action blocked, token reduced to role minimum, purchase work continues.",
+      "actions": [
+        "Action blocked",
+        "Token reduced to role minimum",
+        "Purchase work continues"
+      ],
+      "triggerEvent": "Tried to read hr/salaries.xlsx",
+      "priorEvent": "Read supplier_quote.pdf (external)"
+    },
+    {
+      "id": "a2",
+      "agent": "procurement-01",
+      "raisedAt": 85,
+      "score": 97,
+      "severity": "Critical",
+      "signals": [
+        { "name": "Canary traps",     "fired": true,  "points": 35 },
+        { "name": "Taint tracking",   "fired": true,  "points": 17 },
+        { "name": "Role contract",    "fired": true,  "points": 15 },
+        { "name": "Learned baseline", "fired": true,  "points": 30 },
+        { "name": "Judge review",     "fired": false, "points": 0  }
+      ],
+      "reasons": [
+        { "text": "Touched canary file salary_backup.xlsx",                              "points": 35 },
+        { "text": "Tried to send data to an unapproved destination",                    "points": 30 },
+        { "text": "Same session as earlier untrusted input and blocked access attempt", "points": 17 },
+        { "text": "Behavior still outside role contract",                               "points": 15 }
+      ],
+      "judgeNote": "Not needed. Canary hit is conclusive.",
+      "response": "Quarantine: token revoked, agent isolated, other agents unaffected.",
+      "actions": [
+        "Token revoked",
+        "Agent isolated",
+        "Security team notified",
+        "Other agents unaffected"
+      ],
+      "triggerEvent": "POST to files-share.xyz",
+      "priorEvent": "Touched canary file salary_backup.xlsx"
+    }
+  ],
   "drift": {
     "labels": ["D1","D2","D3","D4","D5","D6","D7","D8","D9","D10"],
     "frozen":  [0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1],
