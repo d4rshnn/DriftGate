@@ -48,6 +48,7 @@ async function init() {
   timeline.init();
   alertScreen.init();
   driftScreen.init();
+  chainScreen.init();
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────
@@ -60,6 +61,7 @@ function switchScreen(name) {
   if (navEl)    navEl.classList.add('active');
   if (name === 'alert') alertScreen.onNavigate();
   if (name === 'drift') driftScreen.onNavigate();
+  if (name === 'chain') chainScreen.onNavigate();
 }
 
 document.querySelectorAll('.nav-item').forEach(item => {
@@ -191,6 +193,11 @@ function applyEvent(ev) {
   if (!isSilent && ev.screen === 'drift') {
     driftScreen.start();
   }
+
+  // Chain hook
+  if (!isSilent && ev.screen === 'chain') {
+    chainScreen.start('with');
+  }
 }
 
 // ── Controls ───────────────────────────────────────────────────────────
@@ -230,6 +237,7 @@ btnReset.addEventListener('click', () => {
   timeline.reset();
   alertScreen.reset();
   driftScreen.reset();
+  chainScreen.reset();
 });
 
 btnSpeed.addEventListener('click', () => {
@@ -1343,6 +1351,466 @@ const driftScreen = (() => {
   }
 
   return { init: drInit, start: drStart, onNavigate: drOnNavigate, reset: drReset };
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+// CHAIN SCREEN MODULE
+// ══════════════════════════════════════════════════════════════════════
+const chainScreen = (() => {
+  const NS = 'http://www.w3.org/2000/svg';
+
+  // DOM
+  const svgEl       = document.getElementById('ch-svg');
+  const edgesG      = document.getElementById('ch-edges-g');
+  const nodesG      = document.getElementById('ch-nodes-g');
+  const packetsG    = document.getElementById('ch-packets-g');
+  const overlayTxt  = document.getElementById('ch-svg-overlay');
+  const captionEl   = document.getElementById('ch-caption');
+  const toggleWith  = document.getElementById('ch-toggle-with');
+  const toggleWithout = document.getElementById('ch-toggle-without');
+  const cntComp     = document.getElementById('ch-cnt-compromised');
+  const cntAff      = document.getElementById('ch-cnt-affected');
+  const cntCut      = document.getElementById('ch-cnt-cut');
+  const authListEl  = document.getElementById('ch-auth-list');
+  const logFeedEl   = document.getElementById('ch-log-feed');
+
+  const CAPTIONS = {
+    with:    'Taint and authority are tracked across every agent-to-agent call',
+    without: 'Illustrative: how one compromise could spread through the chain',
+  };
+
+  // Node visual config by status
+  const STATUS_CFG = {
+    healthy:     { fill: '#0d2218', stroke: '#2fa66a', textColor: '#2fa66a', dot: '#2fa66a'  },
+    watching:    { fill: '#2a2008', stroke: '#e0a030', textColor: '#e0a030', dot: '#e0a030'  },
+    restricted:  { fill: '#2a1208', stroke: '#e8742a', textColor: '#e8742a', dot: '#e8742a'  },
+    quarantined: { fill: '#2a0a10', stroke: '#e5384f', textColor: '#e5384f', dot: '#e5384f'  },
+    untrusted:   { fill: '#2a2208', stroke: '#e0a030', textColor: '#e0a030', dot: '#e0a030', dashed: true },
+    blocked:     { fill: '#2a0a10', stroke: '#e5384f', textColor: '#e5384f', dot: '#e5384f'  },
+  };
+
+  const ICONS = {
+    doc:   '📄',
+    robot: '🤖',
+    cloud: '☁',
+  };
+
+  // state
+  let mode       = 'with';
+  let started    = false;
+  let stepIdx    = 0;
+  let stepTimer  = null;
+  let packetRAFs = [];
+  let logStart   = 0;
+
+  // ── SVG helpers ──────────────────────────────────────────────────────
+  function svgEl_(tag, attrs) {
+    const el = document.createElementNS(NS, tag);
+    Object.entries(attrs || {}).forEach(([k, v]) => el.setAttribute(k, v));
+    return el;
+  }
+
+  function txt(x, y, str, attrs) {
+    const el = svgEl_('text', Object.assign({ x, y, 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, attrs));
+    el.textContent = str;
+    return el;
+  }
+
+  // ── Node geometry ─────────────────────────────────────────────────────
+  const NW = 190, NH = 78, NR = 14;
+
+  function nodeCx(n) { return n.x + NW / 2; }
+  function nodeCy(n) { return n.y + NH / 2; }
+
+  // Edge connection points (left or right side of nodes)
+  function edgePts(fromNode, toNode) {
+    const fx = fromNode.x + NW, fy = fromNode.y + NH / 2;
+    const tx = toNode.x,       ty = toNode.y + NH / 2;
+    return { fx, fy, tx, ty };
+  }
+
+  // ── Draw all nodes ───────────────────────────────────────────────────
+  function drawNodes(nodeStatuses) {
+    nodesG.innerHTML = '';
+    const chain = scenario.chain;
+
+    chain.nodes.forEach(n => {
+      const status = (nodeStatuses && nodeStatuses[n.id]) || 'healthy';
+      const cfg    = STATUS_CFG[status] || STATUS_CFG.healthy;
+      const g      = svgEl_('g', { id: `ch-node-${n.id}`, class: 'ch-node' });
+
+      // Glow filter
+      const glowFilter = (status === 'quarantined') ? 'url(#glow-red)'
+                       : (status === 'healthy')     ? ''
+                       : '';
+
+      // Background rect
+      const rect = svgEl_('rect', {
+        x: n.x, y: n.y, width: NW, height: NH, rx: NR, ry: NR,
+        fill: cfg.fill, stroke: cfg.stroke, 'stroke-width': cfg.dashed ? '1.5' : '1.5',
+        'stroke-dasharray': cfg.dashed ? '6 3' : 'none',
+        ...(glowFilter ? { filter: glowFilter } : {}),
+      });
+      if (status === 'quarantined') {
+        rect.style.animation = 'chPulse 2s ease-in-out infinite';
+      }
+      g.appendChild(rect);
+
+      // Icon badge circle
+      const badge = svgEl_('circle', {
+        cx: n.x + 24, cy: n.y + NH / 2, r: 16,
+        fill: '#120608', stroke: cfg.stroke, 'stroke-width': '1',
+      });
+      g.appendChild(badge);
+
+      // Icon text
+      const icon = svgEl_('text', {
+        x: n.x + 24, y: n.y + NH / 2,
+        'text-anchor': 'middle', 'dominant-baseline': 'middle',
+        'font-size': '14',
+      });
+      icon.textContent = ICONS[n.icon] || '▪';
+      g.appendChild(icon);
+
+      // Label
+      const label = svgEl_('text', {
+        x: n.x + 50, y: n.y + 26,
+        'text-anchor': 'start', 'dominant-baseline': 'middle',
+        'font-family': 'Oswald,sans-serif', 'font-size': '13',
+        'font-weight': '600', fill: cfg.textColor,
+      });
+      label.textContent = n.label;
+      g.appendChild(label);
+
+      // Subtitle
+      const sub = svgEl_('text', {
+        x: n.x + 50, y: n.y + 44,
+        'text-anchor': 'start', 'dominant-baseline': 'middle',
+        'font-family': 'Inter,sans-serif', 'font-size': '10',
+        fill: 'rgba(138,122,110,0.8)',
+      });
+      sub.textContent = n.subtitle || '';
+      g.appendChild(sub);
+
+      // Status dot
+      const dot = svgEl_('circle', {
+        cx: n.x + NW - 28, cy: n.y + NH - 16, r: 4,
+        fill: cfg.dot,
+      });
+      g.appendChild(dot);
+
+      // Status text
+      const statTxt = svgEl_('text', {
+        x: n.x + NW - 20, y: n.y + NH - 16,
+        'text-anchor': 'start', 'dominant-baseline': 'middle',
+        'font-family': 'Inter,sans-serif', 'font-size': '9',
+        'font-weight': '600',
+        fill: cfg.dot, 'text-transform': 'uppercase',
+      });
+      statTxt.textContent = status.toUpperCase();
+      g.appendChild(statTxt);
+
+      nodesG.appendChild(g);
+    });
+  }
+
+  // ── Draw all edges ───────────────────────────────────────────────────
+  function drawEdges(edgeStates) {
+    edgesG.innerHTML = '';
+    const chain = scenario.chain;
+
+    chain.edges.forEach(e => {
+      const fromNode = chain.nodes.find(n => n.id === e.from);
+      const toNode   = chain.nodes.find(n => n.id === e.to);
+      if (!fromNode || !toNode) return;
+
+      const key   = `${e.from}>${e.to}`;
+      const state = (edgeStates && edgeStates[key]) || 'normal';
+
+      const { fx, fy, tx, ty } = edgePts(fromNode, toNode);
+
+      const isPoison = state === 'poisoned';
+      const isCut    = state === 'cut';
+
+      const strokeColor = isCut ? '#e5384f' : isPoison ? '#e5384f' : '#3a1018';
+      const dashArr     = (isCut || isPoison) ? '6 3' : 'none';
+      const markerId    = isCut ? 'arr-cut' : isPoison ? 'arr-poison' : 'arr-normal';
+      const opacity     = (isCut || isPoison) ? '1' : '0.6';
+
+      const g = svgEl_('g');
+
+      // Check if vertical (same x) or angled path needed
+      const line = svgEl_('line', {
+        x1: fx, y1: fy, x2: tx - 8, y2: ty,
+        stroke: strokeColor, 'stroke-width': (isCut || isPoison) ? '2' : '1.5',
+        'stroke-dasharray': dashArr,
+        'marker-end': `url(#${markerId})`,
+        opacity,
+      });
+      g.appendChild(line);
+
+      // Scope badge
+      const mx = (fx + tx) / 2;
+      const my = (fy + ty) / 2;
+
+      const bgRect = svgEl_('rect', {
+        x: mx - 36, y: my - 9, width: 72, height: 18, rx: 4,
+        fill: '#1a0a0e', stroke: strokeColor, 'stroke-width': '0.8',
+        opacity: '0.9',
+      });
+      g.appendChild(bgRect);
+
+      const scopeTxt = svgEl_('text', {
+        x: mx, y: my,
+        'text-anchor': 'middle', 'dominant-baseline': 'middle',
+        'font-family': 'Inter,sans-serif', 'font-size': '9',
+        fill: isCut || isPoison ? '#e5384f' : 'rgba(138,122,110,0.9)',
+      });
+      scopeTxt.textContent = isCut ? '✂ cut' : (e.scope || '');
+      g.appendChild(scopeTxt);
+
+      edgesG.appendChild(g);
+    });
+  }
+
+  // ── Animate packet along an edge ─────────────────────────────────────
+  function animatePacket(packetDef, onDone) {
+    if (!packetDef) { if (onDone) onDone(); return; }
+
+    const chain    = scenario.chain;
+    const fromNode = chain.nodes.find(n => n.id === packetDef.from);
+    const toNode   = chain.nodes.find(n => n.id === packetDef.to);
+    if (!fromNode || !toNode) { if (onDone) onDone(); return; }
+
+    const { fx, fy, tx, ty } = edgePts(fromNode, toNode);
+    const endX = packetDef.cut ? (fx + tx) / 2 : tx;
+    const endY = packetDef.cut ? (fy + ty) / 2 : ty;
+
+    const circle = svgEl_('circle', {
+      r: 6, fill: packetDef.poison ? '#e5384f' : '#3a5a4a',
+      opacity: '0.9',
+      ...(packetDef.poison ? { filter: 'url(#glow-red)' } : {}),
+    });
+    packetsG.appendChild(circle);
+
+    const startTime = performance.now();
+    const duration  = 800;
+
+    function frame(now) {
+      const t    = Math.min((now - startTime) / duration, 1);
+      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      circle.setAttribute('cx', fx + (endX - fx) * ease);
+      circle.setAttribute('cy', fy + (endY - fy) * ease);
+      if (t < 1) {
+        const id = requestAnimationFrame(frame);
+        packetRAFs.push(id);
+      } else {
+        circle.remove();
+        if (onDone) onDone();
+      }
+    }
+
+    const id = requestAnimationFrame(frame);
+    packetRAFs.push(id);
+  }
+
+  // ── Unaffected ring flash ────────────────────────────────────────────
+  function flashUnaffected(nodeIds) {
+    if (!nodeIds) return;
+    nodeIds.forEach(id => {
+      const g = document.getElementById(`ch-node-${id}`);
+      if (!g) return;
+      const chain   = scenario.chain;
+      const n       = chain.nodes.find(x => x.id === id);
+      if (!n) return;
+      const ring = svgEl_('circle', {
+        cx: nodeCx(n), cy: nodeCy(n), r: NW / 2 + 4,
+        fill: 'none', stroke: '#2fa66a', 'stroke-width': '2',
+        opacity: '1',
+      });
+      nodesG.appendChild(ring);
+      let t = 0;
+      function fade() {
+        t += 0.04;
+        ring.setAttribute('opacity', String(Math.max(0, 1 - t)));
+        if (t < 1) { const rid = requestAnimationFrame(fade); packetRAFs.push(rid); }
+        else ring.remove();
+      }
+      const rid = requestAnimationFrame(fade);
+      packetRAFs.push(rid);
+    });
+  }
+
+  // ── Update authority bars ─────────────────────────────────────────────
+  function updateAuthority(authority) {
+    if (!authority) return;
+    const chain = scenario.chain;
+    authListEl.innerHTML = chain.nodes.map(n => {
+      const pct = authority[n.id] !== undefined ? authority[n.id] : 100;
+      const col = pct === 0 ? 'var(--quarantined)' : pct < 60 ? 'var(--restricted)' : 'var(--ok)';
+      return `
+        <div class="ch-auth-row">
+          <span class="ch-auth-label">${n.label}</span>
+          <div class="ch-auth-bar-bg">
+            <div class="ch-auth-bar-fill" style="width:${pct}%;background:${col}"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── Update counters ───────────────────────────────────────────────────
+  function updateCounters(counters) {
+    if (!counters) return;
+    cntComp.textContent = counters[0];
+    cntAff.textContent  = counters[1];
+    cntCut.textContent  = counters[2];
+    cntComp.style.color = counters[0] > 0 ? 'var(--quarantined)' : 'var(--text)';
+    cntAff.style.color  = counters[1] > 0 ? 'var(--quarantined)' : 'var(--text)';
+    cntCut.style.color  = counters[2] > 0 ? 'var(--restricted)'  : 'var(--text)';
+  }
+
+  // ── Append log entry ──────────────────────────────────────────────────
+  function appendLog(text) {
+    const elapsed = ((performance.now() - logStart) / 1000).toFixed(1);
+    const row = document.createElement('div');
+    row.className = 'ch-log-entry';
+    row.innerHTML = `<span class="ch-log-time">+${elapsed}s</span><span class="ch-log-text">${text}</span>`;
+    logFeedEl.appendChild(row);
+    logFeedEl.scrollTop = logFeedEl.scrollHeight;
+  }
+
+  // ── Apply a step ─────────────────────────────────────────────────────
+  function applyStep(step, withAnimation) {
+    drawEdges(step.edgeState);
+    drawNodes(step.nodeStatus);
+    updateCounters(step.counters);
+    updateAuthority(step.authority);
+    if (step.log) appendLog(step.log);
+    if (step.unaffected) flashUnaffected(step.unaffected);
+  }
+
+  // ── Run sequence ─────────────────────────────────────────────────────
+  function runStep() {
+    const steps = mode === 'with' ? scenario.chain.steps : scenario.chain.stepsWithout;
+    if (!steps || stepIdx >= steps.length) {
+      // done — unlock toggle
+      toggleWith.disabled    = false;
+      toggleWithout.disabled = false;
+      return;
+    }
+
+    const step = steps[stepIdx];
+    stepIdx++;
+
+    // Draw edges & nodes immediately, then animate packet, then schedule next
+    drawEdges(step.edgeState);
+    drawNodes(step.nodeStatus);
+    updateCounters(step.counters);
+    updateAuthority(step.authority);
+    if (step.log) appendLog(step.log);
+    if (step.unaffected) flashUnaffected(step.unaffected);
+
+    const interval = 1400 / speed;
+    if (step.packet) {
+      animatePacket(step.packet, () => {
+        stepTimer = setTimeout(runStep, interval - 800);
+      });
+    } else {
+      stepTimer = setTimeout(runStep, interval);
+    }
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────
+  function chInit() {
+    toggleWith.addEventListener('click', () => {
+      if (toggleWith.disabled) return;
+      if (mode === 'with' && started) return;
+      mode = 'with';
+      toggleWith.classList.add('active');
+      toggleWithout.classList.remove('active');
+      captionEl.textContent = CAPTIONS.with;
+      if (started) restart();
+    });
+
+    toggleWithout.addEventListener('click', () => {
+      if (toggleWithout.disabled) return;
+      mode = 'without';
+      toggleWithout.classList.add('active');
+      toggleWith.classList.remove('active');
+      captionEl.textContent = CAPTIONS.without;
+      if (started) restart();
+    });
+  }
+
+  function restart() {
+    clearAll();
+    started  = true;
+    stepIdx  = 0;
+    logStart = performance.now();
+    logFeedEl.innerHTML = '';
+    overlayTxt.textContent = '';
+    // Lock toggle while running
+    toggleWith.disabled    = true;
+    toggleWithout.disabled = true;
+    runStep();
+  }
+
+  // ── Public: start ─────────────────────────────────────────────────────
+  function chStart(m) {
+    if (started) return;
+    mode    = m || 'with';
+    started = true;
+    stepIdx = 0;
+    logStart = performance.now();
+    overlayTxt.textContent = '';
+    logFeedEl.innerHTML    = '';
+    toggleWith.disabled    = true;
+    toggleWithout.disabled = true;
+    runStep();
+  }
+
+  // ── Public: onNavigate ────────────────────────────────────────────────
+  function chOnNavigate() {
+    // Nothing extra needed; SVG is always in DOM
+  }
+
+  // ── Clear animation state ─────────────────────────────────────────────
+  function clearAll() {
+    if (stepTimer)    { clearTimeout(stepTimer); stepTimer = null; }
+    packetRAFs.forEach(id => cancelAnimationFrame(id));
+    packetRAFs = [];
+    packetsG.innerHTML = '';
+  }
+
+  // ── Public: reset ─────────────────────────────────────────────────────
+  function chReset() {
+    clearAll();
+    started  = false;
+    stepIdx  = 0;
+    mode     = 'with';
+
+    toggleWith.classList.add('active');
+    toggleWithout.classList.remove('active');
+    toggleWith.disabled    = false;
+    toggleWithout.disabled = false;
+    captionEl.textContent  = CAPTIONS.with;
+
+    edgesG.innerHTML       = '';
+    nodesG.innerHTML       = '';
+    logFeedEl.innerHTML    = '';
+    authListEl.innerHTML   = '';
+    cntComp.textContent    = '0';
+    cntAff.textContent     = '0';
+    cntCut.textContent     = '0';
+    cntComp.style.color    = 'var(--text)';
+    cntAff.style.color     = 'var(--text)';
+    cntCut.style.color     = 'var(--text)';
+
+    overlayTxt.textContent = 'Chain scenario not started yet';
+  }
+
+  return { init: chInit, start: chStart, onNavigate: chOnNavigate, reset: chReset };
 })();
 
 // ── Start ──────────────────────────────────────────────────────────────

@@ -334,14 +334,99 @@
         <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
       </section>
 
-      <!-- CHAIN SCREEN (placeholder) -->
+      <!-- CHAIN SCREEN -->
       <section class="screen" id="screen-chain">
-        <div class="screen-header">
-          <h2 class="screen-title">Chain Graph</h2>
+
+        <!-- Header -->
+        <div class="ch-header-row">
+          <div class="ch-title-col">
+            <h2 class="screen-title">Chain Graph</h2>
+            <div class="ch-caption" id="ch-caption">Taint and authority are tracked across every agent-to-agent call</div>
+          </div>
+          <div class="ch-toggle-wrap">
+            <button class="ch-toggle-btn active" id="ch-toggle-with">With DriftGate</button>
+            <button class="ch-toggle-btn"        id="ch-toggle-without">Without DriftGate</button>
+          </div>
         </div>
-        <div class="panel placeholder-panel">
-          <p class="placeholder-text">Chain Graph — coming in Step 5</p>
+
+        <!-- Main row -->
+        <div class="ch-main-row">
+
+          <!-- LEFT: SVG graph -->
+          <div class="panel ch-graph-panel">
+            <div class="ch-graph-wrap" id="ch-graph-wrap">
+              <svg id="ch-svg" viewBox="0 0 1000 520" preserveAspectRatio="xMidYMid meet"
+                   xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+                <defs>
+                  <marker id="arr-normal" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L8,3 z" fill="#3a1018"/>
+                  </marker>
+                  <marker id="arr-poison" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L8,3 z" fill="#e5384f"/>
+                  </marker>
+                  <marker id="arr-cut" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L8,3 z" fill="#e5384f"/>
+                  </marker>
+                  <marker id="arr-healthy" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L8,3 z" fill="#2fa66a"/>
+                  </marker>
+                  <filter id="glow-green">
+                    <feGaussianBlur stdDeviation="3" result="blur"/>
+                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                  </filter>
+                  <filter id="glow-red">
+                    <feGaussianBlur stdDeviation="4" result="blur"/>
+                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                  </filter>
+                </defs>
+                <g id="ch-edges-g"></g>
+                <g id="ch-nodes-g"></g>
+                <g id="ch-packets-g"></g>
+                <text id="ch-svg-overlay" x="500" y="270" text-anchor="middle"
+                      font-family="Inter,sans-serif" font-size="16" fill="rgba(138,122,110,0.8)"
+                      font-style="italic">Chain scenario not started yet</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- RIGHT: cards -->
+          <div class="ch-right-col">
+
+            <!-- Blast radius -->
+            <div class="panel ch-blast-panel">
+              <div class="panel-title">Blast radius</div>
+              <div class="ch-counters-row">
+                <div class="ch-counter">
+                  <span class="ch-counter-val" id="ch-cnt-compromised">0</span>
+                  <span class="ch-counter-lbl">Agents compromised</span>
+                </div>
+                <div class="ch-counter">
+                  <span class="ch-counter-val" id="ch-cnt-affected">0</span>
+                  <span class="ch-counter-lbl">Affected downstream</span>
+                </div>
+                <div class="ch-counter">
+                  <span class="ch-counter-val" id="ch-cnt-cut">0</span>
+                  <span class="ch-counter-lbl">Edges cut</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Authority narrowing -->
+            <div class="panel ch-auth-panel">
+              <div class="panel-title">Authority narrowing</div>
+              <div class="ch-auth-list" id="ch-auth-list"></div>
+              <div class="ch-auth-note">Delegated authority can only narrow, never grow</div>
+            </div>
+
+            <!-- Chain log -->
+            <div class="panel ch-log-panel">
+              <div class="panel-title">Chain log</div>
+              <div class="ch-log-feed" id="ch-log-feed"></div>
+            </div>
+
+          </div>
         </div>
+
         <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
       </section>
 

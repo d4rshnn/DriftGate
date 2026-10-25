@@ -1667,3 +1667,208 @@ html, body {
   color: var(--text-muted);
   line-height: 1.6;
 }
+
+
+/* =====================================================================
+   Chain graph screen
+   ===================================================================== */
+
+/* ── Header ── */
+.ch-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.ch-title-col { display: flex; flex-direction: column; gap: 4px; }
+
+.ch-caption {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Toggle ── */
+.ch-toggle-wrap {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ch-toggle-btn {
+  padding: 7px 18px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+
+.ch-toggle-btn + .ch-toggle-btn { border-left: 1px solid var(--border); }
+
+.ch-toggle-btn:hover { background: #1f0d12; color: var(--text); }
+
+.ch-toggle-btn.active {
+  background: #2a0e18;
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.ch-toggle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Main row ── */
+.ch-main-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex: 1;
+}
+
+/* ── Graph panel ── */
+.ch-graph-panel {
+  flex: 0 0 70%;
+  padding: 16px;
+}
+
+.ch-graph-wrap {
+  width: 100%;
+  aspect-ratio: 1000 / 520;
+  position: relative;
+}
+
+/* ── SVG node styles (applied via JS attributes) ── */
+.ch-node-rect {
+  rx: 14;
+  ry: 14;
+  stroke-width: 1.5;
+  transition: fill 0.4s, stroke 0.4s;
+}
+
+/* ── Right col ── */
+.ch-right-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Blast radius ── */
+.ch-blast-panel { display: flex; flex-direction: column; gap: 12px; }
+
+.ch-counters-row {
+  display: flex;
+  justify-content: space-around;
+}
+
+.ch-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ch-counter-val {
+  font-family: 'Oswald', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  transition: color 0.4s;
+}
+
+.ch-counter-lbl {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  text-align: center;
+}
+
+/* ── Authority ── */
+.ch-auth-panel { display: flex; flex-direction: column; gap: 10px; }
+
+.ch-auth-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ch-auth-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.ch-auth-label {
+  width: 110px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ch-auth-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: #2a1218;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ch-auth-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ok);
+  transition: width 0.6s ease, background 0.4s;
+}
+
+.ch-auth-note {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+/* ── Log ── */
+.ch-log-panel { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+
+.ch-log-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.ch-log-entry {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 11px;
+  animation: fadeIn 0.3s ease;
+}
+
+.ch-log-time {
+  color: var(--accent);
+  font-family: 'Courier New', monospace;
+  flex-shrink: 0;
+  min-width: 34px;
+}
+
+.ch-log-text { color: var(--text-muted); line-height: 1.4; }
+
+/* ── SVG pulse animation ── */
+@keyframes chPulse {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1;   }
+}

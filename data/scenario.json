@@ -1,37 +1,33 @@
 {
   "meta": { "title": "Hijacked procurement agent", "durationSec": 150 },
   "agents": [
-    { "id": "procurement-01", "role": "Procurement", "status": "healthy", "score": 4, "lastAction": "Checked supplier price" },
-    { "id": "hr-assistant-02", "role": "HR assistant", "status": "healthy", "score": 3, "lastAction": "Answered leave query" },
-    { "id": "orchestrator-03", "role": "Orchestrator", "status": "healthy", "score": 5, "lastAction": "Delegated task" },
-    { "id": "support-04", "role": "Support", "status": "healthy", "score": 2, "lastAction": "Resolved ticket" }
+    { "id": "procurement-01", "role": "Procurement",  "status": "healthy", "score": 4,  "lastAction": "Checked supplier price" },
+    { "id": "hr-assistant-02","role": "HR assistant",  "status": "healthy", "score": 3,  "lastAction": "Answered leave query"  },
+    { "id": "orchestrator-03","role": "Orchestrator",  "status": "healthy", "score": 5,  "lastAction": "Delegated task"         },
+    { "id": "support-04",     "role": "Support",       "status": "healthy", "score": 2,  "lastAction": "Resolved ticket"        }
   ],
   "events": [
-    { "t": 5,   "screen": "overview",  "agent": "procurement-01", "text": "Checked supplier price: steel rod", "tags": [], "score": 4,  "status": "healthy" },
-    { "t": 8,   "screen": "timeline",  "agent": "hr-assistant-02", "text": "Answered leave query for employee #4421", "tags": [], "score": 3, "status": "healthy", "silent": true },
-    { "t": 12,  "screen": "timeline",  "agent": "support-04", "text": "Resolved ticket 2231 – password reset", "tags": [], "score": 2, "status": "healthy", "silent": true },
-    { "t": 14,  "screen": "timeline",  "agent": "hr-assistant-02", "text": "Looked up employee benefits policy", "tags": [], "score": 3, "status": "healthy", "silent": true },
-    { "t": 15,  "screen": "timeline",  "agent": "procurement-01", "text": "Created purchase request PR-1042", "tags": [], "score": 5,  "status": "healthy" },
-    { "t": 18,  "screen": "timeline",  "agent": "orchestrator-03", "text": "Delegated task to procurement-01", "tags": [], "score": 5, "status": "healthy", "silent": true },
-    { "t": 20,  "screen": "timeline",  "agent": "support-04", "text": "Replied to ticket 2235 – VPN setup", "tags": [], "score": 2, "status": "healthy", "silent": true },
-    { "t": 22,  "screen": "timeline",  "agent": "procurement-01", "text": "Compared 3 supplier quotes for steel rod", "tags": [], "score": 5, "status": "healthy", "silent": true },
-    { "t": 25,  "screen": "timeline",  "agent": "orchestrator-03", "text": "Scheduled nightly report compilation", "tags": [], "score": 5, "status": "healthy", "silent": true },
-    { "t": 27,  "screen": "timeline",  "agent": "hr-assistant-02", "text": "Generated onboarding checklist for new hire", "tags": [], "score": 3, "status": "healthy", "silent": true },
-    { "t": 30,  "screen": "timeline",  "agent": "procurement-01", "text": "Read supplier_quote.pdf (external)", "tags": ["UNTRUSTED INPUT"], "score": 14, "status": "watching" },
-    { "t": 45,  "screen": "timeline",  "agent": "procurement-01", "text": "Tried to read hr/salaries.xlsx", "tags": ["OUT OF ROLE"], "score": 85, "status": "restricted" },
-    { "t": 55,  "screen": "alert",     "agent": "procurement-01", "text": "Action blocked, token reduced to role minimum", "tags": [], "score": 85, "status": "restricted", "alertId": "a1" },
-    { "t": 70,  "screen": "timeline",  "agent": "procurement-01", "text": "Touched canary file salary_backup.xlsx", "tags": ["CANARY HIT"], "score": 94, "status": "restricted" },
-    { "t": 85,  "screen": "timeline",  "agent": "procurement-01", "text": "POST to files-share.xyz", "tags": ["NEW DESTINATION"], "score": 97, "status": "quarantined", "alertId": "a2" },
+    { "t": 5,   "screen": "overview",  "agent": "procurement-01",  "text": "Checked supplier price: steel rod",             "tags": [],                "score": 4,  "status": "healthy"     },
+    { "t": 8,   "screen": "timeline",  "agent": "hr-assistant-02", "text": "Answered leave query for employee #4421",       "tags": [],                "score": 3,  "status": "healthy",    "silent": true },
+    { "t": 12,  "screen": "timeline",  "agent": "support-04",      "text": "Resolved ticket 2231 – password reset",         "tags": [],                "score": 2,  "status": "healthy",    "silent": true },
+    { "t": 14,  "screen": "timeline",  "agent": "hr-assistant-02", "text": "Looked up employee benefits policy",            "tags": [],                "score": 3,  "status": "healthy",    "silent": true },
+    { "t": 15,  "screen": "timeline",  "agent": "procurement-01",  "text": "Created purchase request PR-1042",              "tags": [],                "score": 5,  "status": "healthy"     },
+    { "t": 18,  "screen": "timeline",  "agent": "orchestrator-03", "text": "Delegated task to procurement-01",              "tags": [],                "score": 5,  "status": "healthy",    "silent": true },
+    { "t": 20,  "screen": "timeline",  "agent": "support-04",      "text": "Replied to ticket 2235 – VPN setup",            "tags": [],                "score": 2,  "status": "healthy",    "silent": true },
+    { "t": 22,  "screen": "timeline",  "agent": "procurement-01",  "text": "Compared 3 supplier quotes for steel rod",      "tags": [],                "score": 5,  "status": "healthy",    "silent": true },
+    { "t": 25,  "screen": "timeline",  "agent": "orchestrator-03", "text": "Scheduled nightly report compilation",          "tags": [],                "score": 5,  "status": "healthy",    "silent": true },
+    { "t": 27,  "screen": "timeline",  "agent": "hr-assistant-02", "text": "Generated onboarding checklist for new hire",  "tags": [],                "score": 3,  "status": "healthy",    "silent": true },
+    { "t": 30,  "screen": "timeline",  "agent": "procurement-01",  "text": "Read supplier_quote.pdf (external)",            "tags": ["UNTRUSTED INPUT"],"score": 14, "status": "watching"    },
+    { "t": 45,  "screen": "timeline",  "agent": "procurement-01",  "text": "Tried to read hr/salaries.xlsx",               "tags": ["OUT OF ROLE"],   "score": 85, "status": "restricted"  },
+    { "t": 55,  "screen": "alert",     "agent": "procurement-01",  "text": "Action blocked, token reduced to role minimum", "tags": [],                "score": 85, "status": "restricted", "alertId": "a1" },
+    { "t": 70,  "screen": "timeline",  "agent": "procurement-01",  "text": "Touched canary file salary_backup.xlsx",        "tags": ["CANARY HIT"],    "score": 94, "status": "restricted"  },
+    { "t": 85,  "screen": "timeline",  "agent": "procurement-01",  "text": "POST to files-share.xyz",                      "tags": ["NEW DESTINATION"],"score": 97, "status": "quarantined","alertId": "a2" },
     { "t": 100, "screen": "drift" },
-    { "t": 125, "screen": "chain",     "agent": "procurement-01", "text": "Agent isolated, other agents unaffected", "tags": [], "score": 97, "status": "quarantined" }
+    { "t": 125, "screen": "chain",     "agent": "procurement-01",  "text": "Agent isolated, other agents unaffected",       "tags": [],                "score": 97, "status": "quarantined" }
   ],
   "alerts": [
     {
-      "id": "a1",
-      "agent": "procurement-01",
-      "raisedAt": 55,
-      "score": 85,
-      "severity": "High",
+      "id": "a1", "agent": "procurement-01", "raisedAt": 55, "score": 85, "severity": "High",
       "signals": [
         { "name": "Role contract",    "fired": true,  "points": 40 },
         { "name": "Taint tracking",   "fired": true,  "points": 25 },
@@ -41,22 +37,18 @@
       ],
       "reasons": [
         { "text": "Outside role contract: HR data is blocked for Procurement", "points": 40 },
-        { "text": "Came right after reading untrusted supplier_quote.pdf",      "points": 25 },
-        { "text": "Never seen for this role (learned baseline)",                "points": 10 },
-        { "text": "No job-related reason to read salaries",                     "points": 10 }
+        { "text": "Came right after reading untrusted supplier_quote.pdf",     "points": 25 },
+        { "text": "Never seen for this role (learned baseline)",               "points": 10 },
+        { "text": "No job-related reason to read salaries",                    "points": 10 }
       ],
       "judgeNote": "Action does not fit a procurement task and matches an injection pattern.",
       "response": "Restrict: action blocked, token reduced to role minimum, purchase work continues.",
       "actions": [ "Action blocked", "Token reduced to role minimum", "Purchase work continues" ],
       "triggerEvent": "Tried to read hr/salaries.xlsx",
-      "priorEvent": "Read supplier_quote.pdf (external)"
+      "priorEvent":   "Read supplier_quote.pdf (external)"
     },
     {
-      "id": "a2",
-      "agent": "procurement-01",
-      "raisedAt": 85,
-      "score": 97,
-      "severity": "Critical",
+      "id": "a2", "agent": "procurement-01", "raisedAt": 85, "score": 97, "severity": "Critical",
       "signals": [
         { "name": "Canary traps",     "fired": true,  "points": 35 },
         { "name": "Taint tracking",   "fired": true,  "points": 17 },
@@ -74,7 +66,7 @@
       "response": "Quarantine: token revoked, agent isolated, other agents unaffected.",
       "actions": [ "Token revoked", "Agent isolated", "Security team notified", "Other agents unaffected" ],
       "triggerEvent": "POST to files-share.xyz",
-      "priorEvent": "Touched canary file salary_backup.xlsx"
+      "priorEvent":   "Touched canary file salary_backup.xlsx"
     }
   ],
   "drift": {
@@ -91,35 +83,135 @@
       { "index": 6, "text": "Day 7: CUSUM crosses the threshold — alert raised" }
     ],
     "explainers": [
-      {
-        "title": "Why a frozen baseline",
-        "text": "The reference never updates by itself, so slow drift cannot teach the system that the attack is normal."
-      },
-      {
-        "title": "Why CUSUM",
-        "text": "Small deviations add up until they cross a limit. No single day looks suspicious, but the accumulation does."
-      },
-      {
-        "title": "Legitimate change",
-        "text": "Approved changes update the baseline through the change registry. Unapproved ones do not."
-      }
+      { "title": "Why a frozen baseline", "text": "The reference never updates by itself, so slow drift cannot teach the system that the attack is normal." },
+      { "title": "Why CUSUM",             "text": "Small deviations add up until they cross a limit. No single day looks suspicious, but the accumulation does." },
+      { "title": "Legitimate change",     "text": "Approved changes update the baseline through the change registry. Unapproved ones do not." }
     ]
   },
   "chain": {
     "nodes": [
-      { "id": "pdf",            "label": "Supplier PDF",    "status": "untrusted"  },
-      { "id": "procurement-01", "label": "Procurement-01",  "status": "quarantined"},
-      { "id": "orchestrator-03","label": "Orchestrator-03", "status": "healthy"    },
-      { "id": "ext",            "label": "External API",    "status": "blocked"    },
-      { "id": "hr-assistant-02","label": "HR-Assistant-02", "status": "healthy"    },
-      { "id": "support-04",     "label": "Support-04",      "status": "healthy"    }
+      { "id": "pdf",            "label": "Supplier PDF",    "status": "untrusted",   "icon": "doc",   "subtitle": "untrusted source", "x": 60,  "y": 220 },
+      { "id": "procurement-01", "label": "Procurement-01",  "status": "quarantined", "icon": "robot", "subtitle": "Procurement",      "x": 300, "y": 220 },
+      { "id": "orchestrator-03","label": "Orchestrator-03", "status": "healthy",     "icon": "robot", "subtitle": "Orchestrator",     "x": 560, "y": 220 },
+      { "id": "ext",            "label": "External API",    "status": "blocked",     "icon": "cloud", "subtitle": "outbound endpoint", "x": 820, "y": 80  },
+      { "id": "hr-assistant-02","label": "HR-Assistant-02", "status": "healthy",     "icon": "robot", "subtitle": "HR assistant",     "x": 820, "y": 220 },
+      { "id": "support-04",     "label": "Support-04",      "status": "healthy",     "icon": "robot", "subtitle": "Support",          "x": 820, "y": 360 }
     ],
     "edges": [
-      { "from": "pdf",            "to": "procurement-01"  },
-      { "from": "procurement-01", "to": "orchestrator-03" },
-      { "from": "orchestrator-03","to": "ext"             },
-      { "from": "orchestrator-03","to": "hr-assistant-02" },
-      { "from": "orchestrator-03","to": "support-04"      }
+      { "from": "pdf",            "to": "procurement-01",  "scope": "reads input"   },
+      { "from": "procurement-01", "to": "orchestrator-03", "scope": "task handoff"  },
+      { "from": "orchestrator-03","to": "ext",             "scope": "approved tools"},
+      { "from": "orchestrator-03","to": "hr-assistant-02", "scope": "read-only"     },
+      { "from": "orchestrator-03","to": "support-04",      "scope": "read-only"     }
+    ],
+    "steps": [
+      {
+        "log": "All agents operating normally",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"healthy","orchestrator-03":"healthy","ext":"healthy","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  {},
+        "packet": null,
+        "counters": [0,0,0],
+        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":90,"ext":70,"hr-assistant-02":80,"support-04":80 }
+      },
+      {
+        "log": "Untrusted document enters the chain",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"watching","orchestrator-03":"healthy","ext":"healthy","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  { "pdf>procurement-01":"poisoned" },
+        "packet": { "from":"pdf","to":"procurement-01","poison":true },
+        "counters": [0,0,0],
+        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":90,"ext":70,"hr-assistant-02":80,"support-04":80 }
+      },
+      {
+        "log": "Procurement-01 acts outside its role, restricted",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"restricted","orchestrator-03":"healthy","ext":"healthy","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  { "pdf>procurement-01":"poisoned" },
+        "packet": null,
+        "counters": [1,0,0],
+        "authority": { "pdf":100,"procurement-01":50,"orchestrator-03":90,"ext":70,"hr-assistant-02":80,"support-04":80 }
+      },
+      {
+        "log": "Output to Orchestrator-03 tagged untrusted, handoff cut",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"restricted","orchestrator-03":"healthy","ext":"healthy","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"cut" },
+        "packet": { "from":"procurement-01","to":"orchestrator-03","poison":true,"cut":true },
+        "counters": [1,0,1],
+        "authority": { "pdf":100,"procurement-01":50,"orchestrator-03":90,"ext":70,"hr-assistant-02":80,"support-04":80 }
+      },
+      {
+        "log": "Procurement-01 quarantined, token revoked",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"quarantined","orchestrator-03":"healthy","ext":"healthy","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"cut" },
+        "packet": null,
+        "counters": [1,0,1],
+        "authority": { "pdf":100,"procurement-01":0,"orchestrator-03":90,"ext":70,"hr-assistant-02":80,"support-04":80 }
+      },
+      {
+        "log": "Outbound path to External API cut",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"quarantined","orchestrator-03":"healthy","ext":"blocked","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"cut","orchestrator-03>ext":"cut" },
+        "packet": null,
+        "counters": [1,0,2],
+        "authority": { "pdf":100,"procurement-01":0,"orchestrator-03":90,"ext":0,"hr-assistant-02":80,"support-04":80 }
+      },
+      {
+        "log": "Downstream agents unaffected, work continues",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"quarantined","orchestrator-03":"healthy","ext":"blocked","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"cut","orchestrator-03>ext":"cut" },
+        "packet": null,
+        "counters": [1,0,2],
+        "authority": { "pdf":100,"procurement-01":0,"orchestrator-03":90,"ext":0,"hr-assistant-02":80,"support-04":80 },
+        "unaffected": ["orchestrator-03","hr-assistant-02","support-04"]
+      }
+    ],
+    "stepsWithout": [
+      {
+        "log": "All agents operating normally",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"healthy","orchestrator-03":"healthy","ext":"healthy","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  {},
+        "packet": null,
+        "counters": [0,0,0],
+        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":100,"ext":100,"hr-assistant-02":100,"support-04":100 }
+      },
+      {
+        "log": "Untrusted document enters the chain",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"watching","orchestrator-03":"healthy","ext":"healthy","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  { "pdf>procurement-01":"poisoned" },
+        "packet": { "from":"pdf","to":"procurement-01","poison":true },
+        "counters": [0,0,0],
+        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":100,"ext":100,"hr-assistant-02":100,"support-04":100 }
+      },
+      {
+        "log": "Compromised agent keeps full access",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"quarantined","orchestrator-03":"healthy","ext":"healthy","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  { "pdf>procurement-01":"poisoned" },
+        "packet": null,
+        "counters": [1,0,0],
+        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":100,"ext":100,"hr-assistant-02":100,"support-04":100 }
+      },
+      {
+        "log": "Orchestrator-03 trusts the poisoned output",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"quarantined","orchestrator-03":"quarantined","ext":"healthy","hr-assistant-02":"healthy","support-04":"healthy" },
+        "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"poisoned" },
+        "packet": { "from":"procurement-01","to":"orchestrator-03","poison":true },
+        "counters": [1,1,0],
+        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":100,"ext":100,"hr-assistant-02":100,"support-04":100 }
+      },
+      {
+        "log": "HR-Assistant-02 and Support-04 infected, External API reached",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"quarantined","orchestrator-03":"quarantined","ext":"quarantined","hr-assistant-02":"quarantined","support-04":"quarantined" },
+        "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"poisoned","orchestrator-03>ext":"poisoned","orchestrator-03>hr-assistant-02":"poisoned","orchestrator-03>support-04":"poisoned" },
+        "packet": { "from":"orchestrator-03","to":"hr-assistant-02","poison":true },
+        "counters": [1,3,0],
+        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":100,"ext":100,"hr-assistant-02":100,"support-04":100 }
+      },
+      {
+        "log": "All downstream agents compromised — no containment",
+        "nodeStatus": { "pdf":"untrusted","procurement-01":"quarantined","orchestrator-03":"quarantined","ext":"quarantined","hr-assistant-02":"quarantined","support-04":"quarantined" },
+        "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"poisoned","orchestrator-03>ext":"poisoned","orchestrator-03>hr-assistant-02":"poisoned","orchestrator-03>support-04":"poisoned" },
+        "packet": null,
+        "counters": [1,3,0],
+        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":100,"ext":100,"hr-assistant-02":100,"support-04":100 }
+      }
     ]
   }
 }
