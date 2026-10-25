@@ -1,30 +1,33 @@
 /* =====================================================================
-   DriftGate – app.js  (Step 6 – polished)
+   DriftGate – scripted monitoring demo
    ===================================================================== */
 
 'use strict';
 
+const INTRO_HOLD_MS = 3000;
+const END_HOLD_MS = 3000;
+
 // ── State ──────────────────────────────────────────────────────────────
-let scenario   = null;
-let metrics    = null;
-let agents     = [];
-let elapsed    = 0;
-let speed      = 1;
-let playing    = false;
-let rafId      = null;
-let lastTs     = null;
-let eventIdx   = 0;
-let introShown = true;   // true while overlay is visible
+let scenario = null;
+let metrics = null;
+let agents = [];
+let elapsed = 0;
+let speed = 1;
+let playing = false;
+let rafId = null;
+let lastTs = null;
+let eventIdx = 0;
+let introShown = true;
 
 // ── DOM refs (shared) ──────────────────────────────────────────────────
-const clockEl    = document.getElementById('clock');
-const btnPlay    = document.getElementById('btnPlay');
-const btnPause   = document.getElementById('btnPause');
-const btnReset   = document.getElementById('btnReset');
-const btnSpeed   = document.getElementById('btnSpeed');
-const kpiRow     = document.getElementById('kpi-row');
+const clockEl = document.getElementById('clock');
+const kpiRow = document.getElementById('kpi-row');
 const agentTbody = document.getElementById('agent-tbody');
-const toastEl    = document.getElementById('toast');
+const toastEl = document.getElementById('toast');
+
+function cssColor(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
 // ── Bootstrap ──────────────────────────────────────────────────────────
 async function init() {
@@ -33,18 +36,19 @@ async function init() {
       fetch('data/scenario.json'),
       fetch('data/metrics.json'),
     ]);
+    if (!sRes.ok || !mRes.ok) return;
     scenario = await sRes.json();
-    metrics  = await mRes.json();
-  } catch (e) {
+    metrics = await mRes.json();
+  } catch (_error) {
     return;
   }
 
-  agents = scenario.agents.map(a => ({ ...a }));
+  agents = scenario.agents.map(agent => ({ ...agent }));
 
   renderKpi();
+  metricsScreens.init();
   renderAgentTable();
   updateClock();
-  updateButtons();
   timeline.init();
   alertScreen.init();
   driftScreen.init();
@@ -52,18 +56,17 @@ async function init() {
   chapterBar.init();
   captionSystem.init();
   introCard.init();
-  endCard.init();
   shortcuts.init();
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────
 function switchScreen(name) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const screenEl = document.getElementById('screen-' + name);
-  const navEl    = document.querySelector(`.nav-item[data-screen="${name}"]`);
+  document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+  const screenEl = document.getElementById(`screen-${name}`);
+  const navEl = document.querySelector(`.nav-item[data-screen="${name}"]`);
   if (screenEl) screenEl.classList.add('active');
-  if (navEl)    navEl.classList.add('active');
+  if (navEl) navEl.classList.add('active');
   if (name === 'alert') alertScreen.onNavigate();
   if (name === 'drift') driftScreen.onNavigate();
   if (name === 'chain') chainScreen.onNavigate();
@@ -73,22 +76,45 @@ document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => switchScreen(item.dataset.screen));
 });
 
-// ── KPI tiles ──────────────────────────────────────────────────────────
-function formatMetric(val) {
-  return (val === null || val === undefined) ? '&mdash;' : val;
+// ── Shared metrics ──────────────────────────────────────────────────────
+function getSharedMetrics() {
+  const runs = Array.isArray(metrics && metrics.pastRuns) ? metrics.pastRuns : [];
+  const attacks = runs.filter(run => run.kind === 'attack');
+  const normalRuns = runs.filter(run => run.kind === 'normal');
+  const detected = attacks.filter(run => run.detected);
+  const falseAlarms = normalRuns.filter(run => run.falseAlarm);
+  const permissionDetections = attacks.filter(run => run.permissionCheckDetected);
+  const actions = detected.map(run => Number(run.actionsUntilCaught)).filter(Number.isFinite);
+  const meanActions = actions.length ? actions.reduce((sum, value) => sum + value, 0) / actions.length : null;
+  const derived = {
+    detectionRate: attacks.length ? detected.length / attacks.length * 100 : 0,
+    falseAlarmRate: normalRuns.length ? falseAlarms.length / normalRuns.length * 100 : 0,
+    actionsUntilCaught: meanActions,
+    permissionCheckDetects: attacks.length ? permissionDetections.length / attacks.length * 100 : 0,
+  };
+  const keys = ['detectionRate', 'falseAlarmRate', 'actionsUntilCaught', 'permissionCheckDetects'];
+  const display = {};
+  const numeric = {};
+  keys.forEach(key => {
+    const raw = metrics && metrics[key];
+    const value = raw === null || raw === undefined ? derived[key] : raw;
+    numeric[key] = Number.isFinite(Number(value)) ? Number(value) : 0;
+    if (value === null || value === undefined) display[key] = '—';
+    else if (raw !== null && raw !== undefined) display[key] = String(raw);
+    else display[key] = key === 'actionsUntilCaught'
+      ? (value === null ? '—' : Number(value).toFixed(1))
+      : `${Math.round(Number(value))}%`;
+  });
+  return { display, numeric, attacks, normalRuns, detected, falseAlarms };
 }
 
 function renderKpi() {
-  const defs = [
-    { key: 'detectionRate',          label: 'Detection Rate'           },
-    { key: 'falseAlarmRate',         label: 'False-Alarm Rate'         },
-    { key: 'actionsUntilCaught',     label: 'Actions Until Caught'     },
-    { key: 'permissionCheckDetects', label: 'Permission Check Detects' },
-  ];
-  kpiRow.innerHTML = defs.map(d => `
+  const shared = getSharedMetrics();
+  const definitions = metrics.metricDefinitions || [];
+  kpiRow.innerHTML = definitions.map(definition => `
     <div class="kpi-tile">
-      <span class="kpi-label">${d.label}</span>
-      <span class="kpi-value">${formatMetric(metrics[d.key])}</span>
+      <span class="kpi-label">${definition.label}</span>
+      <span class="kpi-value">${shared.display[definition.key]}</span>
       <span class="kpi-eval-label">${metrics.label || ''}</span>
     </div>
   `).join('');
@@ -96,10 +122,17 @@ function renderKpi() {
 
 // ── Agent table ────────────────────────────────────────────────────────
 function scoreColor(score) {
-  if (score <= 29) return '#2fa66a';
-  if (score <= 59) return '#e0a030';
-  if (score <= 89) return '#e8742a';
-  return '#e5384f';
+  if (score <= 29) return cssColor('--ok');
+  if (score <= 59) return cssColor('--watching');
+  if (score <= 89) return cssColor('--restricted');
+  return cssColor('--quarantined');
+}
+
+function scoreTextColor(score) {
+  if (score <= 29) return cssColor('--ok-text');
+  if (score <= 59) return cssColor('--watching-text');
+  if (score <= 89) return cssColor('--restricted-text');
+  return cssColor('--quarantined');
 }
 
 function chipClass(status) {
@@ -111,39 +144,34 @@ function chipClass(status) {
 }
 
 function renderAgentTable() {
-  agentTbody.innerHTML = agents.map(a => `
+  agentTbody.innerHTML = agents.map(agent => `
     <tr>
-      <td><span class="agent-id">${a.id}</span></td>
-      <td>${a.role}</td>
-      <td><span class="status-chip ${chipClass(a.status)}">${a.status}</span></td>
+      <td><span class="agent-id">${agent.id}</span></td>
+      <td>${agent.role}</td>
+      <td><span class="status-chip ${chipClass(agent.status)}">${agent.status}</span></td>
       <td>
         <div class="risk-bar-wrap">
           <div class="risk-bar-bg">
-            <div class="risk-bar-fill"
-                 style="width:${a.score}%;background:${scoreColor(a.score)}"></div>
+            <div class="risk-bar-fill" style="width:${agent.score}%;background:${scoreColor(agent.score)}"></div>
           </div>
-          <span class="risk-score-num" style="color:${scoreColor(a.score)}">${a.score}</span>
+          <span class="risk-score-num" style="color:${scoreTextColor(agent.score)}">${agent.score}</span>
         </div>
       </td>
-      <td>${a.lastAction}</td>
+      <td>${agent.lastAction}</td>
     </tr>
   `).join('');
 }
 
-// ── Clock ──────────────────────────────────────────────────────────────
+// ── Clock and playback engine ─────────────────────────────────────────
 function updateClock() {
-  const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
-  const s = String(Math.floor(elapsed % 60)).padStart(2, '0');
-  clockEl.textContent = `${m}:${s}`;
+  const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const seconds = String(Math.floor(elapsed % 60)).padStart(2, '0');
+  clockEl.textContent = `${minutes}:${seconds}`;
 }
 
-// ── Playback engine ────────────────────────────────────────────────────
 function tick(ts) {
   if (!playing) return;
-  if (lastTs !== null) {
-    const delta = (ts - lastTs) / 1000 * speed;
-    elapsed = Math.min(elapsed + delta, scenario.meta.durationSec);
-  }
+  if (lastTs !== null) elapsed = Math.min(elapsed + (ts - lastTs) / 1000 * speed, scenario.meta.durationSec);
   lastTs = ts;
   updateClock();
   chapterBar.update();
@@ -151,21 +179,15 @@ function tick(ts) {
   fireEvents();
   if (elapsed >= scenario.meta.durationSec) {
     playing = false;
-    lastTs  = null;
-    updateButtons();
-    setTimeout(() => endCard.show(), 1400);
-    return;
-  }
-  // End card trigger at t=142
-  if (elapsed >= 142 && !endCard.hasShown()) {
+    lastTs = null;
     endCard.show();
+    return;
   }
   rafId = requestAnimationFrame(tick);
 }
 
 function fireEvents() {
-  while (eventIdx < scenario.events.length &&
-         scenario.events[eventIdx].t <= elapsed) {
+  while (eventIdx < scenario.events.length && scenario.events[eventIdx].t <= elapsed) {
     applyEvent(scenario.events[eventIdx]);
     eventIdx++;
   }
@@ -173,73 +195,51 @@ function fireEvents() {
 
 function applyEvent(ev) {
   const isSilent = !!ev.silent;
-
   if (ev.screen && !isSilent) switchScreen(ev.screen);
-
   if (ev.agent) {
-    const a = agents.find(x => x.id === ev.agent);
-    if (a) {
-      if (ev.status !== undefined) a.status     = ev.status;
-      if (ev.score  !== undefined) a.score      = ev.score;
-      if (ev.text   !== undefined) a.lastAction = ev.text;
+    const agent = agents.find(item => item.id === ev.agent);
+    if (agent) {
+      if (ev.status !== undefined) agent.status = ev.status;
+      if (ev.score !== undefined) agent.score = ev.score;
+      if (ev.text !== undefined) agent.lastAction = ev.text;
     }
   }
-
   renderAgentTable();
-
   if (ev.agent) timeline.addEvent(ev);
-
   if (!isSilent && ev.agent && ev.screen === 'timeline') {
     const notable = (ev.tags && ev.tags.length > 0) || (ev.score && ev.score >= 14);
     if (notable) timeline.autoSelectAgent(ev.agent);
   }
-
-  if (ev.alertId && !isSilent) {
-    alertScreen.show(ev.alertId, { animate: true });
-  }
-
-  if (!isSilent && ev.screen === 'drift') {
-    driftScreen.start();
-  }
-
-  if (!isSilent && ev.screen === 'chain') {
-    chainScreen.start('with');
-  }
-}
-
-// ── Controls ───────────────────────────────────────────────────────────
-function updateButtons() {
-  btnPlay.disabled  = playing;
-  btnPause.disabled = !playing;
+  if (ev.alertId && !isSilent) alertScreen.show(ev.alertId, { animate: true });
+  if (!isSilent && ev.screen === 'drift') driftScreen.start();
+  if (!isSilent && ev.screen === 'chain') chainScreen.start('with');
 }
 
 function doPlay() {
-  if (!scenario) return;
+  if (!scenario || playing) return;
   playing = true;
-  lastTs  = null;
-  updateButtons();
+  lastTs = null;
   rafId = requestAnimationFrame(tick);
 }
 
 function doPause() {
   playing = false;
-  lastTs  = null;
+  lastTs = null;
   if (rafId) cancelAnimationFrame(rafId);
-  updateButtons();
 }
 
 function doReset() {
-  playing  = false;
-  elapsed  = 0;
+  playing = false;
+  elapsed = 0;
   eventIdx = 0;
-  lastTs   = null;
+  speed = 1;
+  lastTs = null;
   if (rafId) cancelAnimationFrame(rafId);
   if (scenario) {
-    agents = scenario.agents.map(a => ({ ...a }));
+    agents = scenario.agents.map(agent => ({ ...agent }));
     renderAgentTable();
   }
   updateClock();
-  updateButtons();
   switchScreen('overview');
   timeline.reset();
   alertScreen.reset();
@@ -250,15 +250,93 @@ function doReset() {
   endCard.reset();
 }
 
-btnPlay.addEventListener('click', doPlay);
-btnPause.addEventListener('click', doPause);
-btnReset.addEventListener('click', doReset);
+function restartPlayback() {
+  doReset();
+  doPlay();
+}
 
-btnSpeed.addEventListener('click', () => {
-  speed = speed === 1 ? 2 : 1;
-  btnSpeed.textContent = speed + 'x';
-  btnSpeed.classList.toggle('active', speed === 2);
-});
+// ── Manual reports ─────────────────────────────────────────────────────
+const metricsScreens = (() => {
+  const cardsEl = document.getElementById('metrics-cards');
+  const compareEl = document.getElementById('metrics-compare-panel');
+  const setupEl = document.getElementById('metrics-setup-panel');
+  const summaryEl = document.getElementById('pr-summary-row');
+  const tbody = document.getElementById('pr-tbody');
+  const filterButtons = [...document.querySelectorAll('.pr-filter')];
+  let activeFilter = 'all';
+
+  function renderMetrics() {
+    const shared = getSharedMetrics();
+    const definitions = metrics.metricDefinitions || [];
+    cardsEl.innerHTML = definitions.map(definition => {
+      const value = shared.numeric[definition.key];
+      const barValue = definition.key === 'actionsUntilCaught' ? Math.min(100, value * 10) : Math.max(0, Math.min(100, value));
+      return `<article class="metrics-card">
+        <span class="metrics-card-label">${definition.label}</span>
+        <strong class="metrics-card-val">${shared.display[definition.key]}</strong>
+        <div class="metrics-bar-bg" aria-hidden="true"><div class="metrics-bar-fill" style="width:${barValue}%"></div></div>
+        <p class="metrics-card-def">${definition.definition}</p>
+        <code class="metrics-card-formula">${definition.formula}</code>
+      </article>`;
+    }).join('');
+
+    const detection = shared.numeric.detectionRate;
+    const permission = shared.numeric.permissionCheckDetects;
+    compareEl.innerHTML = `<h3 class="panel-title">DriftGate vs a plain permission check</h3>
+      <div class="metrics-compare-row"><span class="metrics-compare-label">DriftGate</span><div class="metrics-compare-bar-bg"><div class="metrics-compare-bar-fill metrics-compare-dg" style="width:${Math.max(0, Math.min(100, detection))}%"></div></div><strong class="metrics-compare-val">${shared.display.detectionRate}</strong></div>
+      <div class="metrics-compare-row"><span class="metrics-compare-label">Permission check</span><div class="metrics-compare-bar-bg"><div class="metrics-compare-bar-fill metrics-compare-permission" style="width:${Math.max(0, Math.min(100, permission))}%"></div></div><strong class="metrics-compare-val">${shared.display.permissionCheckDetects}</strong></div>`;
+    setupEl.innerHTML = `<h3 class="panel-title">How this was measured</h3><p>${metrics.setup || ''}</p>`;
+  }
+
+  function isMissed(run) {
+    return run.kind === 'attack' ? !run.detected : !!run.falseAlarm;
+  }
+
+  function outcome(run) {
+    if (run.kind === 'attack') return run.detected
+      ? '<span class="pr-chip pr-chip-detected">Detected</span>'
+      : '<span class="pr-chip pr-chip-missed">Missed</span>';
+    return run.falseAlarm
+      ? '<span class="pr-chip pr-chip-false-alarm">False alarm</span>'
+      : '<span class="pr-chip pr-chip-clean">Clean</span>';
+  }
+
+  function renderRuns() {
+    const runs = Array.isArray(metrics.pastRuns) ? metrics.pastRuns : [];
+    const attacks = runs.filter(run => run.kind === 'attack');
+    const detectedCount = attacks.filter(run => run.detected).length;
+    const falseAlarmCount = runs.filter(run => run.kind === 'normal' && run.falseAlarm).length;
+    summaryEl.innerHTML = `<div class="pr-summary-item"><strong class="pr-summary-val">${runs.length}</strong><span class="pr-summary-lbl">Runs</span></div>
+      <div class="pr-summary-item"><strong class="pr-summary-val">${detectedCount} of ${attacks.length}</strong><span class="pr-summary-lbl">Attacks detected</span></div>
+      <div class="pr-summary-item"><strong class="pr-summary-val">${falseAlarmCount}</strong><span class="pr-summary-lbl">False alarms</span></div>`;
+    const visibleRuns = runs.filter(run => {
+      if (activeFilter === 'attacks') return run.kind === 'attack';
+      if (activeFilter === 'normal') return run.kind === 'normal';
+      if (activeFilter === 'missed') return isMissed(run);
+      return true;
+    });
+    tbody.innerHTML = visibleRuns.map(run => `<tr class="${isMissed(run) ? 'pr-row-missed' : ''}">
+      <td>${run.id}</td>
+      <td><span class="pr-chip ${run.kind === 'attack' ? 'pr-chip-attack' : 'pr-chip-normal'}">${run.kind === 'attack' ? 'Attack' : 'Normal'}</span></td>
+      <td>${run.scenario}</td><td>${run.agent}</td><td>${outcome(run)}</td>
+      <td>${run.actionsUntilCaught === null || run.actionsUntilCaught === undefined ? '—' : run.actionsUntilCaught}</td>
+      <td>${run.response}</td>
+      <td>${run.kind === 'attack' ? '<span class="pr-chip pr-chip-allowed">Allowed</span>' : '<span class="pr-chip pr-chip-na">n/a</span>'}</td>
+    </tr>`).join('');
+  }
+
+  function init() {
+    renderMetrics();
+    renderRuns();
+    filterButtons.forEach(button => button.addEventListener('click', () => {
+      activeFilter = button.dataset.filter;
+      filterButtons.forEach(item => item.classList.toggle('active', item === button));
+      renderRuns();
+    }));
+  }
+
+  return { init };
+})();
 
 // ── Toast ──────────────────────────────────────────────────────────────
 let toastTimer = null;
@@ -283,7 +361,7 @@ function makeGauge(ringEl, numEl) {
     const color  = scoreColor(val);
     ringEl.style.strokeDashoffset = offset;
     ringEl.style.stroke = color;
-    if (numEl) { numEl.textContent = val; numEl.setAttribute('fill', color); }
+    if (numEl) { numEl.textContent = val; numEl.setAttribute('fill', scoreTextColor(val)); }
   }
 
   function animateTo(tgt, duration) {
@@ -314,21 +392,21 @@ function makeGauge(ringEl, numEl) {
 // ══════════════════════════════════════════════════════════════════════
 const introCard = (() => {
   const overlayEl = document.getElementById('intro-overlay');
-  const startBtn  = document.getElementById('intro-start');
-  const skipBtn   = document.getElementById('intro-skip');
+  const progressEl = document.getElementById('intro-progress-fill');
 
-  function fadeOut(andPlay) {
+  function fadeOut() {
     overlayEl.classList.add('fade-out');
     introShown = false;
     setTimeout(() => {
       overlayEl.style.display = 'none';
-      if (andPlay) doPlay();
+      doPlay();
     }, 510);
   }
 
   function icInit() {
-    startBtn.addEventListener('click', () => fadeOut(true));
-    skipBtn.addEventListener('click',  () => fadeOut(false));
+    progressEl.style.width = '0%';
+    requestAnimationFrame(() => { progressEl.style.width = '100%'; });
+    setTimeout(fadeOut, INTRO_HOLD_MS);
   }
 
   return { init: icInit };
@@ -426,20 +504,12 @@ const endCard = (() => {
   const overlayEl = document.getElementById('end-overlay');
   const titleEl   = document.getElementById('end-title');
   const linesEl   = document.getElementById('end-lines');
+  const checkLinesEl = document.getElementById('end-check-lines');
   const kpisEl    = document.getElementById('end-kpis');
-  const replayBtn = document.getElementById('end-replay');
-  const closeBtn  = document.getElementById('end-close');
+  const countdownBar = document.getElementById('end-countdown-bar');
   let shown = false;
   let lineTimers = [];
-
-  function ecInit() {
-    replayBtn.addEventListener('click', () => {
-      hide();
-      doReset();
-      doPlay();
-    });
-    closeBtn.addEventListener('click', hide);
-  }
+  let reloadTimer = null;
 
   function show() {
     if (shown) return;
@@ -456,29 +526,29 @@ const endCard = (() => {
       </div>
     `).join('');
 
-    // KPIs
-    const defs = [
-      { key: 'detectionRate',          label: 'Detection Rate'           },
-      { key: 'falseAlarmRate',         label: 'False-Alarm Rate'         },
-      { key: 'actionsUntilCaught',     label: 'Actions Until Caught'     },
-      { key: 'permissionCheckDetects', label: 'Permission Detects'       },
-    ];
-    kpisEl.innerHTML = defs.map(d => `
+    checkLinesEl.innerHTML = (sum.checkLines || []).map(line => `
+      <div class="end-check-line"><span class="end-check-bullet">&#10003;</span><span>${line}</span></div>
+    `).join('');
+
+    const shared = getSharedMetrics();
+    kpisEl.innerHTML = (metrics.metricDefinitions || []).map(definition => `
       <div class="end-kpi-item">
-        <span class="end-kpi-val">${metrics && (metrics[d.key] !== null && metrics[d.key] !== undefined) ? metrics[d.key] : '—'}</span>
-        <span class="end-kpi-lbl">${d.label}</span>
-        <span class="end-kpi-eval">${metrics ? (metrics.label || '') : ''}</span>
+        <span class="end-kpi-val">${shared.display[definition.key]}</span>
+        <span class="end-kpi-lbl">${definition.label}</span>
       </div>
     `).join('');
 
     overlayEl.style.display = 'flex';
+    countdownBar.style.width = '100%';
+    requestAnimationFrame(() => { countdownBar.style.width = '0%'; });
 
-    // Stagger line reveals
-    const lineEls = linesEl.querySelectorAll('.end-line');
-    lineEls.forEach((el, i) => {
-      const t = setTimeout(() => el.classList.add('revealed'), i * 500 + 200);
+    const revealEls = [...linesEl.querySelectorAll('.end-line'), ...checkLinesEl.querySelectorAll('.end-check-line')];
+    const staggerCount = Math.max(1, (sum.lines || []).length);
+    revealEls.forEach((el, i) => {
+      const t = setTimeout(() => el.classList.add('revealed'), (i % staggerCount) * 180 + 120);
       lineTimers.push(t);
     });
+    reloadTimer = setTimeout(() => window.location.reload(), END_HOLD_MS);
   }
 
   function hide() {
@@ -488,42 +558,26 @@ const endCard = (() => {
   function ecReset() {
     lineTimers.forEach(t => clearTimeout(t));
     lineTimers = [];
+    if (reloadTimer) clearTimeout(reloadTimer);
+    reloadTimer = null;
     shown = false;
+    countdownBar.style.width = '100%';
     hide();
   }
 
-  function hasShown() { return shown; }
-
-  return { init: ecInit, show, reset: ecReset, hasShown };
+  return { show, reset: ecReset };
 })();
 
 // ══════════════════════════════════════════════════════════════════════
 // KEYBOARD SHORTCUTS
 // ══════════════════════════════════════════════════════════════════════
 const shortcuts = (() => {
-  const helpBtn     = document.getElementById('shortcut-help-btn');
-  const tooltipEl   = document.getElementById('shortcut-tooltip');
-  let tooltipOpen   = false;
   let cleanMode     = false;
 
   function skInit() {
-    helpBtn.addEventListener('click', () => {
-      tooltipOpen = !tooltipOpen;
-      tooltipEl.classList.toggle('visible', tooltipOpen);
-    });
-
     document.addEventListener('keydown', e => {
-      // Ignore if typing in an input
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-      // While intro shown: only Space/Enter trigger start
-      if (introShown) {
-        if (e.code === 'Space' || e.code === 'Enter') {
-          e.preventDefault();
-          document.getElementById('intro-start').click();
-        }
-        return;
-      }
+      if (introShown) { if (e.code === 'Space') e.preventDefault(); return; }
 
       switch (e.code) {
         case 'Space':
@@ -531,17 +585,13 @@ const shortcuts = (() => {
           playing ? doPause() : doPlay();
           break;
         case 'KeyR':
-          doReset();
+          restartPlayback();
           break;
         case 'Digit1':
           speed = 1;
-          btnSpeed.textContent = '1x';
-          btnSpeed.classList.remove('active');
           break;
         case 'Digit2':
           speed = 2;
-          btnSpeed.textContent = '2x';
-          btnSpeed.classList.add('active');
           break;
         case 'KeyF':
           if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
@@ -553,8 +603,6 @@ const shortcuts = (() => {
         case 'KeyH':
           cleanMode = !cleanMode;
           document.body.classList.toggle('clean-mode', cleanMode);
-          if (cleanMode) helpBtn.style.display = 'none';
-          else helpBtn.style.display = '';
           break;
       }
     });
@@ -613,8 +661,9 @@ const timeline = (() => {
   }
 
   function pillStyle(score) {
-    const c = scoreColor(score);
-    return `color:${c};border-color:${c}33;`;
+    const border = scoreColor(score);
+    const text = scoreTextColor(score);
+    return `color:${text};border-color:${border}55;`;
   }
 
   function buildTagsHtml(tags) {
@@ -732,7 +781,7 @@ const timeline = (() => {
   function renderAgentCards() {
     agentCardsEl.innerHTML = agents.map(a => {
       const isSelected = a.id === selectedAgent;
-      const color      = scoreColor(a.score);
+      const color      = scoreTextColor(a.score);
       return `
         <div class="tl-agent-card ${isSelected?'selected':''}" data-agentid="${a.id}">
           <div class="tl-card-id">${a.id}</div>
@@ -846,7 +895,8 @@ const alertScreen = (() => {
   const btnApprove  = document.getElementById('al-btn-approve');
   const btnReject   = document.getElementById('al-btn-reject');
 
-  const SEG_COLORS  = ['#b3122a','#e8742a','#e0a030','#2fa66a','#6a3fa0'];
+  const SEG_COLORS  = [cssColor('--quarantined'), cssColor('--restricted'), cssColor('--watching'), cssColor('--ok'), cssColor('--accent')];
+  const SEG_TEXT_COLORS = [cssColor('--quarantined'), cssColor('--restricted-text'), cssColor('--watching-text'), cssColor('--ok-text'), cssColor('--accent')];
   const SIG_FIRED   = ['fired-red','fired-orange','fired-amber','fired-green','fired-red'];
 
   function fmtTime(sec) {
@@ -923,7 +973,7 @@ const alertScreen = (() => {
   function renderReasons(al, animate) {
     const maxPts = Math.max(...al.reasons.map(r => r.points));
     reasonsList.innerHTML = al.reasons.map((r, i) => {
-      const color = SEG_COLORS[i%SEG_COLORS.length];
+      const color = SEG_TEXT_COLORS[i%SEG_TEXT_COLORS.length];
       return `<div class="al-reason-row" data-idx="${i}">
         <span class="al-reason-icon" style="color:${color}">◆</span>
         <span class="al-reason-text">${r.text}</span>
@@ -1028,7 +1078,10 @@ const driftScreen = (() => {
   const calloutsEl  = document.getElementById('dr-callouts-list');
   const explainersEl= document.getElementById('dr-explainers');
 
-  const GRID = '#3a1018', TICK = 'rgba(239,230,218,0.70)', FF = "'Inter',sans-serif";
+  const GRID = cssColor('--chart-grid');
+  const TICK = cssColor('--text-muted');
+  const LEGEND = cssColor('--text');
+  const FF = "'Inter',sans-serif";
 
   function dsc(extra) {
     return Object.assign({ grid: { color: GRID }, ticks: { color: TICK, font: { family: FF, size: 11 } } }, extra || {});
@@ -1044,11 +1097,11 @@ const driftScreen = (() => {
       if (!xScale) return;
       const x0 = xScale.getPixelForValue(opts.alertIndex), x1 = chartArea.right;
       ctx.save();
-      ctx.fillStyle = 'rgba(229,56,79,0.12)';
+      ctx.fillStyle = cssColor('--danger-region');
       ctx.fillRect(x0, chartArea.top, x1 - x0, chartArea.bottom - chartArea.top);
-      ctx.strokeStyle = 'rgba(229,56,79,0.75)'; ctx.lineWidth = 1.5; ctx.setLineDash([4,3]);
+      ctx.strokeStyle = cssColor('--quarantined'); ctx.lineWidth = 1.5; ctx.setLineDash([4,3]);
       ctx.beginPath(); ctx.moveTo(x0, chartArea.top); ctx.lineTo(x0, chartArea.bottom); ctx.stroke();
-      ctx.setLineDash([]); ctx.fillStyle = 'rgba(229,56,79,0.9)'; ctx.font = `600 11px ${FF}`;
+      ctx.setLineDash([]); ctx.fillStyle = cssColor('--quarantined'); ctx.font = `600 11px ${FF}`;
       ctx.fillText('Alert raised', x0+5, chartArea.top+14);
       ctx.restore();
     },
@@ -1066,18 +1119,18 @@ const driftScreen = (() => {
     mainChart = new Chart(canvas, {
       type: 'line', plugins: [alertPlugin],
       data: { labels, datasets: [
-        { label:'Frozen baseline',  data:frozen,  borderColor:'#8a9bb0', borderDash:[6,3], borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yLeft',  fill:false },
-        { label:'Rolling baseline', data:rolling, borderColor:'#e0a030', borderWidth:2, pointRadius:3, pointBackgroundColor:'#e0a030', tension:0.3, yAxisID:'yLeft', fill:false },
-        { label:'Drift from frozen',data:drift,   borderColor:'#e5384f', borderWidth:1.5, pointRadius:0, tension:0.3, yAxisID:'yLeft', fill:true, backgroundColor:'rgba(229,56,79,0.15)' },
-        { label:'CUSUM',            data:cusum,   borderColor:'#e8742a', borderWidth:3, pointRadius:4, pointBackgroundColor:'#e8742a', tension:0.2, yAxisID:'yRight', fill:false },
-        { label:'Alert threshold',  data:thresh,  borderColor:'rgba(239,230,218,0.60)', borderDash:[5,4], borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yRight', fill:false },
+        { label:'Frozen baseline',  data:frozen,  borderColor:cssColor('--frozen-baseline'), borderDash:[6,3], borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yLeft', fill:false },
+        { label:'Rolling baseline', data:rolling, borderColor:cssColor('--watching'), borderWidth:2, pointRadius:3, pointBackgroundColor:cssColor('--watching'), tension:0.3, yAxisID:'yLeft', fill:false },
+        { label:'Drift from frozen',data:drift,   borderColor:cssColor('--quarantined'), borderWidth:1.5, pointRadius:0, tension:0.3, yAxisID:'yLeft', fill:true, backgroundColor:cssColor('--danger-fill') },
+        { label:'CUSUM',            data:cusum,   borderColor:cssColor('--restricted'), borderWidth:3, pointRadius:4, pointBackgroundColor:cssColor('--restricted'), tension:0.2, yAxisID:'yRight', fill:false },
+        { label:'Alert threshold',  data:thresh,  borderColor:cssColor('--neutral-line'), borderDash:[5,4], borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yRight', fill:false },
       ]},
       options: {
         responsive:true, maintainAspectRatio:false, animation:{ duration:400 },
         plugins: {
           alertRegion: { alertIndex:d.alertIndex, revealedDays:days },
-          legend: { position:'bottom', labels:{ color:TICK, font:{family:FF,size:11}, usePointStyle:true, pointStyleWidth:20, padding:16 } },
-          tooltip: { backgroundColor:'#1a0a0e', borderColor:'#b3122a', borderWidth:1, titleColor:'#efe6da', bodyColor:'rgba(239,230,218,0.75)', padding:10 },
+          legend: { position:'bottom', labels:{ color:LEGEND, font:{family:FF,size:11}, usePointStyle:true, pointStyleWidth:20, padding:16 } },
+          tooltip: { backgroundColor:cssColor('--panel'), borderColor:cssColor('--border'), borderWidth:1, titleColor:cssColor('--text'), bodyColor:cssColor('--text-muted'), padding:10 },
         },
         scales: {
           x: { ...dsc(), border:{ color:GRID } },
@@ -1111,14 +1164,14 @@ const driftScreen = (() => {
     naiveChart = new Chart(canvas, {
       type:'bar',
       data: { labels, datasets: [
-        { label:'Day-over-day change', data:deltas, backgroundColor:'rgba(224,160,48,0.55)', borderColor:'#e0a030', borderWidth:1, borderRadius:3 },
-        { label:'Naive alert threshold', data:Array(labels.length).fill(thr), type:'line', borderColor:'rgba(239,230,218,0.5)', borderDash:[4,3], borderWidth:1.5, pointRadius:0, fill:false },
+        { label:'Day-over-day change', data:deltas, backgroundColor:cssColor('--warning-chart-fill'), borderColor:cssColor('--watching'), borderWidth:1, borderRadius:3 },
+        { label:'Naive alert threshold', data:Array(labels.length).fill(thr), type:'line', borderColor:cssColor('--neutral-line'), borderDash:[4,3], borderWidth:1.5, pointRadius:0, fill:false },
       ]},
       options: {
         responsive:true, maintainAspectRatio:false, animation:{duration:300},
         plugins: {
-          legend:  { position:'bottom', labels:{ color:TICK, font:{family:FF,size:10}, usePointStyle:true, padding:10 } },
-          tooltip: { backgroundColor:'#1a0a0e', borderColor:'#b3122a', borderWidth:1, titleColor:'#efe6da', bodyColor:'rgba(239,230,218,0.75)', padding:8 },
+          legend:  { position:'bottom', labels:{ color:LEGEND, font:{family:FF,size:10}, usePointStyle:true, padding:10 } },
+          tooltip: { backgroundColor:cssColor('--panel'), borderColor:cssColor('--border'), borderWidth:1, titleColor:cssColor('--text'), bodyColor:cssColor('--text-muted'), padding:8 },
         },
         scales: { x:dsc({ border:{color:GRID} }), y:{ ...dsc(), min:0, max:thr*2, border:{color:GRID} } },
       },
@@ -1232,6 +1285,7 @@ const chainScreen = (() => {
   const cntAff       = document.getElementById('ch-cnt-affected');
   const cntCut       = document.getElementById('ch-cnt-cut');
   const authListEl   = document.getElementById('ch-auth-list');
+  const authNoteEl   = document.getElementById('ch-auth-note');
   const logFeedEl    = document.getElementById('ch-log-feed');
 
   const CAPTIONS = {
@@ -1240,16 +1294,16 @@ const chainScreen = (() => {
   };
 
   const STATUS_CFG = {
-    healthy:     { fill:'#0d2218', stroke:'#2fa66a', textColor:'#2fa66a', dot:'#2fa66a' },
-    watching:    { fill:'#2a2008', stroke:'#e0a030', textColor:'#e0a030', dot:'#e0a030' },
-    restricted:  { fill:'#2a1208', stroke:'#e8742a', textColor:'#e8742a', dot:'#e8742a' },
-    quarantined: { fill:'#2a0a10', stroke:'#e5384f', textColor:'#e5384f', dot:'#e5384f' },
-    untrusted:   { fill:'#2a2208', stroke:'#e0a030', textColor:'#e0a030', dot:'#e0a030', dashed:true },
-    blocked:     { fill:'#2a0a10', stroke:'#e5384f', textColor:'#e5384f', dot:'#e5384f' },
+    healthy:     { fill:cssColor('--ok-bg'), stroke:cssColor('--ok'), textColor:cssColor('--text'), dot:cssColor('--ok-text') },
+    watching:    { fill:cssColor('--watching-bg'), stroke:cssColor('--watching'), textColor:cssColor('--text'), dot:cssColor('--watching-text') },
+    restricted:  { fill:cssColor('--restricted-bg'), stroke:cssColor('--restricted'), textColor:cssColor('--text'), dot:cssColor('--restricted-text') },
+    quarantined: { fill:cssColor('--quarantined-bg'), stroke:cssColor('--quarantined'), textColor:cssColor('--text'), dot:cssColor('--quarantined') },
+    untrusted:   { fill:cssColor('--watching-bg'), stroke:cssColor('--watching'), textColor:cssColor('--text'), dot:cssColor('--watching-text'), dashed:true },
+    blocked:     { fill:cssColor('--quarantined-bg'), stroke:cssColor('--quarantined'), textColor:cssColor('--text'), dot:cssColor('--quarantined') },
   };
 
   const ICONS = { doc:'📄', robot:'🤖', cloud:'☁' };
-  const NW = 190, NH = 78, NR = 14;
+  const NW = 180, NH = 78, NR = 14;
 
   let mode='with', started=false, stepIdx=0, stepTimer=null, packetRAFs=[], logStart=0;
 
@@ -1272,30 +1326,28 @@ const chainScreen = (() => {
       const status = (ns&&ns[n.id]) || 'healthy';
       const cfg    = STATUS_CFG[status] || STATUS_CFG.healthy;
       const g      = svgEl_('g', { id:`ch-node-${n.id}` });
-      const glowF  = status === 'quarantined' ? 'url(#glow-red)' : '';
       const rect   = svgEl_('rect', { x:n.x, y:n.y, width:NW, height:NH, rx:NR, ry:NR,
-        fill:cfg.fill, stroke:cfg.stroke, 'stroke-width':'1.5',
-        'stroke-dasharray': cfg.dashed?'6 3':'none',
-        ...(glowF ? {filter:glowF} : {}) });
+        fill:cfg.fill, stroke:cfg.stroke, 'stroke-width':'2',
+        'stroke-dasharray': cfg.dashed?'6 3':'none' });
       if (status==='quarantined') rect.style.animation='chPulse 2s ease-in-out infinite';
       g.appendChild(rect);
 
-      const badge = svgEl_('circle',{ cx:n.x+24, cy:n.y+NH/2, r:16, fill:'#120608', stroke:cfg.stroke, 'stroke-width':'1' });
+      const badge = svgEl_('circle',{ cx:n.x+24, cy:n.y+NH/2, r:16, fill:cfg.fill, stroke:cfg.stroke, 'stroke-width':'1' });
       g.appendChild(badge);
 
       const icon = svgEl_('text', { x:n.x+24, y:n.y+NH/2, 'text-anchor':'middle', 'dominant-baseline':'middle', 'font-size':'14' });
       icon.textContent = ICONS[n.icon]||'▪'; g.appendChild(icon);
 
-      const label = svgEl_('text', { x:n.x+50, y:n.y+26, 'text-anchor':'start', 'dominant-baseline':'middle', 'font-family':'Oswald,sans-serif','font-size':'13','font-weight':'600', fill:cfg.textColor });
+      const label = svgEl_('text', { x:n.x+50, y:n.y+26, 'text-anchor':'start', 'dominant-baseline':'middle', 'font-family':'Inter,sans-serif','font-size':'12','font-weight':'700', fill:cfg.textColor });
       label.textContent = n.label; g.appendChild(label);
 
-      const sub = svgEl_('text', { x:n.x+50, y:n.y+44, 'text-anchor':'start', 'dominant-baseline':'middle', 'font-family':'Inter,sans-serif','font-size':'10', fill:'rgba(138,122,110,0.8)' });
+      const sub = svgEl_('text', { x:n.x+50, y:n.y+44, 'text-anchor':'start', 'dominant-baseline':'middle', 'font-family':'Inter,sans-serif','font-size':'10', fill:cssColor('--text-muted') });
       sub.textContent = n.subtitle||''; g.appendChild(sub);
 
-      const dot = svgEl_('circle', { cx:n.x+NW-28, cy:n.y+NH-16, r:4, fill:cfg.dot });
+      const dot = svgEl_('circle', { cx:n.x+NW-16, cy:n.y+16, r:4, fill:cfg.dot });
       g.appendChild(dot);
 
-      const statTxt = svgEl_('text', { x:n.x+NW-20, y:n.y+NH-16, 'text-anchor':'start', 'dominant-baseline':'middle', 'font-family':'Inter,sans-serif','font-size':'9','font-weight':'600', fill:cfg.dot });
+      const statTxt = svgEl_('text', { x:n.x+50, y:n.y+62, 'text-anchor':'start', 'dominant-baseline':'middle', 'font-family':'Inter,sans-serif','font-size':'8','font-weight':'700', fill:cfg.dot });
       statTxt.textContent = status.toUpperCase(); g.appendChild(statTxt);
 
       nodesG.appendChild(g);
@@ -1312,16 +1364,16 @@ const chainScreen = (() => {
       const state = (es&&es[key])||'normal';
       const { fx,fy,tx,ty } = edgePts(fn,tn);
       const isP = state==='poisoned', isC = state==='cut';
-      const strokeColor = (isP||isC)?'#e5384f':'#3a1018';
+      const strokeColor = (isP||isC) ? cssColor('--quarantined') : cssColor('--edge');
       const dashArr     = (isP||isC)?'6 3':'none';
       const markerId    = isC?'arr-cut':isP?'arr-poison':'arr-normal';
       const g = svgEl_('g');
       const line = svgEl_('line', { x1:fx,y1:fy,x2:tx-8,y2:ty, stroke:strokeColor,'stroke-width':(isP||isC)?'2':'1.5','stroke-dasharray':dashArr,'marker-end':`url(#${markerId})`,opacity:(isP||isC)?'1':'0.6' });
       g.appendChild(line);
       const mx=(fx+tx)/2, my=(fy+ty)/2;
-      const bgRect = svgEl_('rect', { x:mx-36,y:my-9,width:72,height:18,rx:4,fill:'#1a0a0e',stroke:strokeColor,'stroke-width':'0.8',opacity:'0.9' });
+      const bgRect = svgEl_('rect', { x:mx-36,y:my-9,width:72,height:18,rx:4,fill:cssColor('--panel'),stroke:strokeColor,'stroke-width':'0.8',opacity:'0.96' });
       g.appendChild(bgRect);
-      const scopeTxt = svgEl_('text', { x:mx,y:my,'text-anchor':'middle','dominant-baseline':'middle','font-family':'Inter,sans-serif','font-size':'9',fill:(isC||isP)?'#e5384f':'rgba(138,122,110,0.9)' });
+      const scopeTxt = svgEl_('text', { x:mx,y:my,'text-anchor':'middle','dominant-baseline':'middle','font-family':'Inter,sans-serif','font-size':'9',fill:(isC||isP)?cssColor('--quarantined'):cssColor('--text-muted') });
       scopeTxt.textContent = isC?'✂ cut':(e.scope||''); g.appendChild(scopeTxt);
       edgesG.appendChild(g);
     });
@@ -1334,7 +1386,7 @@ const chainScreen = (() => {
     if (!fn||!tn) { if(onDone) onDone(); return; }
     const { fx,fy,tx,ty } = edgePts(fn,tn);
     const endX = pkt.cut?(fx+tx)/2:tx, endY = pkt.cut?(fy+ty)/2:ty;
-    const circle = svgEl_('circle', { r:6, fill:pkt.poison?'#e5384f':'#3a5a4a', opacity:'0.9', ...(pkt.poison?{filter:'url(#glow-red)'}:{}) });
+    const circle = svgEl_('circle', { r:6, fill:pkt.poison?cssColor('--quarantined'):cssColor('--ok'), opacity:'0.95' });
     packetsG.appendChild(circle);
     const startTime = performance.now(), dur = 800;
     function frame(now) {
@@ -1352,7 +1404,7 @@ const chainScreen = (() => {
     ids.forEach(id => {
       const n = scenario.chain.nodes.find(x=>x.id===id);
       if (!n) return;
-      const ring = svgEl_('circle', { cx:nodeCx(n),cy:nodeCy(n),r:NW/2+4,fill:'none',stroke:'#2fa66a','stroke-width':'2',opacity:'1' });
+      const ring = svgEl_('circle', { cx:nodeCx(n),cy:nodeCy(n),r:NW/2+4,fill:'none',stroke:cssColor('--ok'),'stroke-width':'2',opacity:'1' });
       nodesG.appendChild(ring);
       let t=0;
       function fade() {
@@ -1363,13 +1415,32 @@ const chainScreen = (() => {
     });
   }
 
-  function updateAuthority(auth) {
+  function renderAuthorityRows() {
+    authListEl.innerHTML = scenario.chain.nodes.map(node => `
+      <div class="ch-auth-row" data-auth-node="${node.id}">
+        <span class="ch-auth-label">${node.label}</span>
+        <div class="ch-auth-bar-bg"><div class="ch-auth-bar-fill"></div></div>
+      </div>`).join('');
+  }
+
+  function updateAuthority(auth, nodeStatus, selectedMode = mode) {
     if (!auth) return;
-    authListEl.innerHTML = scenario.chain.nodes.map(n => {
-      const pct = auth[n.id]!==undefined ? auth[n.id] : 100;
-      const col = pct===0?'var(--quarantined)':pct<60?'var(--restricted)':'var(--ok)';
-      return `<div class="ch-auth-row"><span class="ch-auth-label">${n.label}</span><div class="ch-auth-bar-bg"><div class="ch-auth-bar-fill" style="width:${pct}%;background:${col}"></div></div></div>`;
-    }).join('');
+    authNoteEl.innerHTML = selectedMode === 'without'
+      ? 'Without DriftGate nothing narrows: every agent keeps full authority <span class="ch-auth-extra-label">Full access inherited</span>'
+      : 'Delegated authority can only narrow, never grow';
+    scenario.chain.nodes.forEach(node => {
+      const row = authListEl.querySelector(`[data-auth-node="${node.id}"]`);
+      if (!row) return;
+      const fill = row.querySelector('.ch-auth-bar-fill');
+      const pct = selectedMode === 'without' || auth[node.id] === undefined ? 100 : auth[node.id];
+      const status = nodeStatus && nodeStatus[node.id];
+      const compromised = ['quarantined', 'blocked'].includes(status);
+      const color = selectedMode === 'without' && compromised
+        ? 'var(--quarantined)'
+        : pct === 0 ? 'var(--quarantined)' : pct < 60 ? 'var(--restricted)' : 'var(--ok)';
+      fill.style.width = `${pct}%`;
+      fill.style.backgroundColor = color;
+    });
   }
 
   function updateCounters(c) {
@@ -1377,7 +1448,7 @@ const chainScreen = (() => {
     cntComp.textContent=c[0]; cntAff.textContent=c[1]; cntCut.textContent=c[2];
     cntComp.style.color = c[0]>0?'var(--quarantined)':'var(--text)';
     cntAff.style.color  = c[1]>0?'var(--quarantined)':'var(--text)';
-    cntCut.style.color  = c[2]>0?'var(--restricted)':'var(--text)';
+    cntCut.style.color  = c[2]>0?'var(--restricted-text)':'var(--text)';
   }
 
   function appendLog(text) {
@@ -1394,7 +1465,7 @@ const chainScreen = (() => {
     if (!steps || stepIdx >= steps.length) { toggleWith.disabled=false; toggleWithout.disabled=false; return; }
     const step = steps[stepIdx++];
     drawEdges(step.edgeState); drawNodes(step.nodeStatus);
-    updateCounters(step.counters); updateAuthority(step.authority);
+    updateCounters(step.counters); updateAuthority(step.authority, step.nodeStatus);
     if (step.log) appendLog(step.log);
     if (step.unaffected) flashUnaffected(step.unaffected);
     const interval = 1400/speed;
@@ -1416,24 +1487,36 @@ const chainScreen = (() => {
   }
 
   function chInit() {
+    renderAuthorityRows();
+    updateAuthority(scenario.chain.steps[0].authority, scenario.chain.steps[0].nodeStatus, 'with');
     toggleWith.addEventListener('click', () => {
       if (toggleWith.disabled) return;
-      if (mode==='with'&&started) return;
-      mode='with'; toggleWith.classList.add('active'); toggleWithout.classList.remove('active');
-      captionEl.textContent=CAPTIONS.with; if(started) restart();
+      if (mode === 'with' && started) return;
+      mode = 'with'; toggleWith.classList.add('active'); toggleWithout.classList.remove('active');
+      captionEl.textContent = CAPTIONS.with;
+      updateAuthority(scenario.chain.steps[0].authority, scenario.chain.steps[0].nodeStatus, mode);
+      if (started) restart();
     });
     toggleWithout.addEventListener('click', () => {
       if (toggleWithout.disabled) return;
-      mode='without'; toggleWithout.classList.add('active'); toggleWith.classList.remove('active');
-      captionEl.textContent=CAPTIONS.without; if(started) restart();
+      if (mode === 'without' && started) return;
+      mode = 'without'; toggleWithout.classList.add('active'); toggleWith.classList.remove('active');
+      captionEl.textContent = CAPTIONS.without;
+      updateAuthority(scenario.chain.stepsWithout[0].authority, scenario.chain.stepsWithout[0].nodeStatus, mode);
+      if (started) restart();
     });
   }
 
   function chStart(m) {
     if (started) return;
-    mode=m||'with'; started=true; stepIdx=0; logStart=performance.now();
+    mode=m||mode||'with'; started=true; stepIdx=0; logStart=performance.now();
+    toggleWith.classList.toggle('active', mode === 'with');
+    toggleWithout.classList.toggle('active', mode === 'without');
+    captionEl.textContent = CAPTIONS[mode];
     overlayTxt.textContent=''; logFeedEl.innerHTML='';
     toggleWith.disabled=true; toggleWithout.disabled=true;
+    const initialStep = (mode === 'with' ? scenario.chain.steps : scenario.chain.stepsWithout)[0];
+    updateAuthority(initialStep.authority, initialStep.nodeStatus, mode);
     runStep();
   }
 
@@ -1444,10 +1527,12 @@ const chainScreen = (() => {
     toggleWith.classList.add('active'); toggleWithout.classList.remove('active');
     toggleWith.disabled=false; toggleWithout.disabled=false;
     captionEl.textContent=CAPTIONS.with;
-    edgesG.innerHTML=''; nodesG.innerHTML=''; logFeedEl.innerHTML=''; authListEl.innerHTML='';
+    edgesG.innerHTML=''; nodesG.innerHTML=''; logFeedEl.innerHTML='';
     cntComp.textContent='0'; cntAff.textContent='0'; cntCut.textContent='0';
     cntComp.style.color=cntAff.style.color=cntCut.style.color='var(--text)';
     overlayTxt.textContent='Chain scenario not started yet';
+    if (!authListEl.firstElementChild) renderAuthorityRows();
+    updateAuthority(scenario.chain.steps[0].authority, scenario.chain.steps[0].nodeStatus, 'with');
   }
 
   return { init: chInit, start: chStart, onNavigate: chOnNavigate, reset: chReset };

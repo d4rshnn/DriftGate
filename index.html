@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DriftGate</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 2 L28 7 L28 16 C28 23 22 29 16 31 C10 29 4 23 4 16 L4 7 Z' fill='%232f5bea'/><path d='M12 16 L15 19 L21 13' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+  <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -20,9 +20,9 @@
     </div>
     <div class="intro-content">
       <svg class="intro-shield" viewBox="0 0 80 90" xmlns="http://www.w3.org/2000/svg">
-        <path d="M40 4 L72 16 L72 42 C72 62 58 76 40 84 C22 76 8 62 8 42 L8 16 Z" fill="none" stroke="#2f5bea" stroke-width="3"/>
-        <path d="M40 4 L72 16 L72 42 C72 62 58 76 40 84 C22 76 8 62 8 42 L8 16 Z" fill="#2f5bea" opacity="0.10"/>
-        <path d="M28 44 L37 53 L54 36" stroke="#2f5bea" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M40 4 L72 16 L72 42 C72 62 58 76 40 84 C22 76 8 62 8 42 L8 16 Z" fill="none" stroke="var(--accent)" stroke-width="3"/>
+        <path d="M40 4 L72 16 L72 42 C72 62 58 76 40 84 C22 76 8 62 8 42 L8 16 Z" fill="var(--accent)" opacity="0.10"/>
+        <path d="M28 44 L37 53 L54 36" stroke="var(--accent)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <div class="intro-brand">DriftGate</div>
       <div class="intro-tagline">Valid token. Not valid behavior.</div>
@@ -61,8 +61,8 @@
   <header class="topbar">
     <div class="topbar-col topbar-left">
       <svg class="topbar-shield" viewBox="0 0 24 28" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 1 L22 5 L22 13 C22 20 17 25 12 27 C7 25 2 20 2 13 L2 5 Z" fill="#2f5bea" opacity="0.9"/>
-        <path d="M8 14 L11 17 L16 11" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 1 L22 5 L22 13 C22 20 17 25 12 27 C7 25 2 20 2 13 L2 5 Z" fill="var(--accent)" opacity="0.9"/>
+        <path d="M8 14 L11 17 L16 11" stroke="var(--white)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span class="brand">DriftGate</span>
       <span class="brand-sub">by Gatekeepers</span>
@@ -145,7 +145,7 @@
           <span class="nav-label">Chain Graph</span>
         </li>
 
-        <div class="nav-divider">Reports</div>
+        <li class="nav-divider">Reports</li>
 
         <li class="nav-item" data-screen="metrics" data-manual="true">
           <svg class="nav-svg-icon" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -381,31 +381,23 @@
                    xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <marker id="arr-normal" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L8,3 z" fill="#98a2b3"/>
+                    <path d="M0,0 L0,6 L8,3 z" fill="var(--edge)"/>
                   </marker>
                   <marker id="arr-poison" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L8,3 z" fill="#d62f45"/>
+                    <path d="M0,0 L0,6 L8,3 z" fill="var(--quarantined)"/>
                   </marker>
                   <marker id="arr-cut" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L8,3 z" fill="#d62f45"/>
+                    <path d="M0,0 L0,6 L8,3 z" fill="var(--quarantined)"/>
                   </marker>
                   <marker id="arr-healthy" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L8,3 z" fill="#1f9d63"/>
+                    <path d="M0,0 L0,6 L8,3 z" fill="var(--ok)"/>
                   </marker>
-                  <filter id="glow-green">
-                    <feGaussianBlur stdDeviation="2" result="blur"/>
-                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                  </filter>
-                  <filter id="glow-red">
-                    <feGaussianBlur stdDeviation="3" result="blur"/>
-                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                  </filter>
                 </defs>
                 <g id="ch-edges-g"></g>
                 <g id="ch-nodes-g"></g>
                 <g id="ch-packets-g"></g>
                 <text id="ch-svg-overlay" x="500" y="270" text-anchor="middle"
-                      font-family="Inter,sans-serif" font-size="16" fill="#8a93a5"
+                      font-family="Inter,sans-serif" font-size="16" fill="var(--text-muted-2)"
                       font-style="italic">Chain scenario not started yet</text>
               </svg>
             </div>

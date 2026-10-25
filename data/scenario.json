@@ -111,7 +111,7 @@
         "edgeState":  {},
         "packet": null,
         "counters": [0,0,0],
-        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":90,"ext":70,"hr-assistant-02":80,"support-04":80 }
+        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":80,"ext":60,"hr-assistant-02":65,"support-04":70 }
       },
       {
         "log": "Untrusted document enters the chain",
@@ -119,7 +119,7 @@
         "edgeState":  { "pdf>procurement-01":"poisoned" },
         "packet": { "from":"pdf","to":"procurement-01","poison":true },
         "counters": [0,0,0],
-        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":90,"ext":70,"hr-assistant-02":80,"support-04":80 }
+        "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":80,"ext":60,"hr-assistant-02":65,"support-04":70 }
       },
       {
         "log": "Procurement-01 acts outside its role, restricted",
@@ -127,7 +127,7 @@
         "edgeState":  { "pdf>procurement-01":"poisoned" },
         "packet": null,
         "counters": [1,0,0],
-        "authority": { "pdf":100,"procurement-01":50,"orchestrator-03":90,"ext":70,"hr-assistant-02":80,"support-04":80 }
+        "authority": { "pdf":100,"procurement-01":50,"orchestrator-03":40,"ext":30,"hr-assistant-02":32,"support-04":35 }
       },
       {
         "log": "Output to Orchestrator-03 tagged untrusted, handoff cut",
@@ -135,7 +135,7 @@
         "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"cut" },
         "packet": { "from":"procurement-01","to":"orchestrator-03","poison":true,"cut":true },
         "counters": [1,0,1],
-        "authority": { "pdf":100,"procurement-01":50,"orchestrator-03":90,"ext":70,"hr-assistant-02":80,"support-04":80 }
+        "authority": { "pdf":100,"procurement-01":50,"orchestrator-03":40,"ext":30,"hr-assistant-02":32,"support-04":35 }
       },
       {
         "log": "Procurement-01 quarantined, token revoked",
@@ -143,7 +143,7 @@
         "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"cut" },
         "packet": null,
         "counters": [1,0,1],
-        "authority": { "pdf":100,"procurement-01":0,"orchestrator-03":90,"ext":70,"hr-assistant-02":80,"support-04":80 }
+        "authority": { "pdf":100,"procurement-01":0,"orchestrator-03":40,"ext":30,"hr-assistant-02":32,"support-04":35 }
       },
       {
         "log": "Outbound path to External API cut",
@@ -151,7 +151,7 @@
         "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"cut","orchestrator-03>ext":"cut" },
         "packet": null,
         "counters": [1,0,2],
-        "authority": { "pdf":100,"procurement-01":0,"orchestrator-03":90,"ext":0,"hr-assistant-02":80,"support-04":80 }
+        "authority": { "pdf":100,"procurement-01":0,"orchestrator-03":40,"ext":0,"hr-assistant-02":32,"support-04":35 }
       },
       {
         "log": "Downstream agents unaffected, work continues",
@@ -159,7 +159,7 @@
         "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"cut","orchestrator-03>ext":"cut" },
         "packet": null,
         "counters": [1,0,2],
-        "authority": { "pdf":100,"procurement-01":0,"orchestrator-03":90,"ext":0,"hr-assistant-02":80,"support-04":80 },
+        "authority": { "pdf":100,"procurement-01":0,"orchestrator-03":40,"ext":0,"hr-assistant-02":32,"support-04":35 },
         "unaffected": ["orchestrator-03","hr-assistant-02","support-04"]
       }
     ],
