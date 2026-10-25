@@ -1468,3 +1468,202 @@ html, body {
 .al-btn-approve:hover { background: #38c87e; box-shadow: 0 0 14px #2fa66a66; }
 .al-btn-reject  { border-color: var(--quarantined); color: var(--quarantined); }
 .al-btn-reject:hover { background: #330a10; }
+
+
+/* =====================================================================
+   Drift chart screen
+   ===================================================================== */
+
+/* ── Header ── */
+.dr-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.dr-title-col { display: flex; flex-direction: column; gap: 4px; }
+
+.dr-caption {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  letter-spacing: 0.3px;
+}
+
+.dr-status-chip {
+  padding: 6px 18px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border: 1px solid var(--watching);
+  background: #332a0a;
+  color: var(--watching);
+  transition: background 0.4s, color 0.4s, border-color 0.4s, box-shadow 0.4s;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+
+.dr-status-chip.alert {
+  border-color: var(--quarantined);
+  background: #330a10;
+  color: var(--quarantined);
+  box-shadow: 0 0 14px #e5384f55;
+}
+
+/* ── Main row ── */
+.dr-main-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex: 1;
+}
+
+.dr-main-panel {
+  flex: 0 0 68%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: box-shadow 0.5s ease;
+}
+
+.dr-main-panel.alert-flash {
+  box-shadow: 0 0 32px #e5384f66, inset 0 0 20px #e5384f1a;
+}
+
+.dr-chart-wrap {
+  position: relative;
+  height: 460px;
+}
+
+.dr-chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+.dr-overlay-msg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: var(--text-muted);
+  font-style: italic;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+
+.dr-overlay-msg.hidden { opacity: 0; }
+
+/* ── Right column ── */
+.dr-right-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dr-naive-panel { display: flex; flex-direction: column; gap: 10px; }
+
+.dr-naive-chart-wrap { height: 160px; position: relative; }
+.dr-naive-chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+.dr-naive-status {
+  font-size: 12px;
+  color: #6a8a6a;
+  font-style: italic;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.dr-naive-status.visible { opacity: 1; }
+
+/* ── Callouts ── */
+.dr-callouts-panel { display: flex; flex-direction: column; gap: 12px; }
+
+.dr-callouts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dr-callout-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #120608;
+  opacity: 0.3;
+  transform: translateX(-8px);
+  transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.4s, background 0.4s, box-shadow 0.4s;
+}
+
+.dr-callout-row.lit {
+  opacity: 1;
+  transform: translateX(0);
+  background: #1a0c10;
+  border-color: #4a1828;
+}
+
+.dr-callout-row.lit-alert {
+  opacity: 1;
+  transform: translateX(0);
+  background: #2a0a12;
+  border-color: var(--quarantined);
+  box-shadow: 0 0 12px #e5384f33;
+}
+
+.dr-callout-num {
+  font-family: 'Oswald', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.dr-callout-row.lit      .dr-callout-num { color: var(--watching); }
+.dr-callout-row.lit-alert .dr-callout-num { color: var(--quarantined); }
+
+.dr-callout-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.dr-callout-row.lit       .dr-callout-text { color: var(--text); }
+.dr-callout-row.lit-alert  .dr-callout-text { color: var(--text); }
+
+/* ── Explainer strip ── */
+.dr-explainers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.dr-explainer-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dr-explainer-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.dr-explainer-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}

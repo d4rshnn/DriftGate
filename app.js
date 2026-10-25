@@ -47,6 +47,7 @@ async function init() {
   updateButtons();
   timeline.init();
   alertScreen.init();
+  driftScreen.init();
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────
@@ -58,6 +59,7 @@ function switchScreen(name) {
   if (screenEl) screenEl.classList.add('active');
   if (navEl)    navEl.classList.add('active');
   if (name === 'alert') alertScreen.onNavigate();
+  if (name === 'drift') driftScreen.onNavigate();
 }
 
 document.querySelectorAll('.nav-item').forEach(item => {
@@ -184,6 +186,11 @@ function applyEvent(ev) {
   if (ev.alertId && !isSilent) {
     alertScreen.show(ev.alertId, { animate: true });
   }
+
+  // Drift hook
+  if (!isSilent && ev.screen === 'drift') {
+    driftScreen.start();
+  }
 }
 
 // ── Controls ───────────────────────────────────────────────────────────
@@ -222,6 +229,7 @@ btnReset.addEventListener('click', () => {
   switchScreen('overview');
   timeline.reset();
   alertScreen.reset();
+  driftScreen.reset();
 });
 
 btnSpeed.addEventListener('click', () => {
@@ -899,6 +907,442 @@ const alertScreen = (() => {
   }
 
   return { init: alInit, show, reset, onNavigate };
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+// DRIFT SCREEN MODULE
+// ══════════════════════════════════════════════════════════════════════
+const driftScreen = (() => {
+  let mainChart   = null;
+  let naiveChart  = null;
+  let revealed    = 0;       // how many days have been drawn (0 = none)
+  let started     = false;   // whether start() has been called
+  let revealTimer = null;
+
+  // DOM
+  const mainPanelEl  = document.getElementById('dr-main-panel');
+  const chartWrapEl  = document.getElementById('dr-chart-wrap');
+  const overlayEl    = document.getElementById('dr-overlay-msg');
+  const statusChipEl = document.getElementById('dr-status-chip');
+  const naiveStatEl  = document.getElementById('dr-naive-status');
+  const calloutsEl   = document.getElementById('dr-callouts-list');
+  const explainersEl = document.getElementById('dr-explainers');
+
+  // ── Chart.js shared dark defaults ──────────────────────────────────
+  const GRID_COLOR  = '#3a1018';
+  const TICK_COLOR  = 'rgba(239,230,218,0.70)';
+  const FONT_FAMILY = "'Inter', sans-serif";
+
+  function darkScaleDefaults(extra) {
+    return Object.assign({
+      grid:  { color: GRID_COLOR },
+      ticks: { color: TICK_COLOR, font: { family: FONT_FAMILY, size: 11 } },
+    }, extra || {});
+  }
+
+  // ── Alert-region plugin (inline) ─────────────────────────────────────
+  const alertRegionPlugin = {
+    id: 'alertRegion',
+    afterDraw(chart, args, opts) {
+      if (!opts || opts.alertIndex === undefined || opts.revealedDays === undefined) return;
+      if (opts.revealedDays <= opts.alertIndex) return;
+
+      const { ctx, chartArea, scales } = chart;
+      const xScale = scales['x'];
+      if (!xScale) return;
+
+      const x0 = xScale.getPixelForValue(opts.alertIndex);
+      const x1 = chartArea.right;
+
+      // Shaded region
+      ctx.save();
+      ctx.fillStyle = 'rgba(229,56,79,0.12)';
+      ctx.fillRect(x0, chartArea.top, x1 - x0, chartArea.bottom - chartArea.top);
+
+      // Vertical line
+      ctx.strokeStyle = 'rgba(229,56,79,0.75)';
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x0, chartArea.top);
+      ctx.lineTo(x0, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Label
+      ctx.fillStyle = 'rgba(229,56,79,0.9)';
+      ctx.font      = `600 11px ${FONT_FAMILY}`;
+      ctx.fillText('Alert raised', x0 + 5, chartArea.top + 14);
+      ctx.restore();
+    },
+  };
+
+  // ── Build main chart ─────────────────────────────────────────────────
+  function buildMainChart(d, days) {
+    const labels  = d.labels.slice(0, days);
+    const frozen  = d.frozen.slice(0, days);
+    const rolling = d.rolling.slice(0, days);
+    const drift   = rolling.map((v, i) => parseFloat((v - (d.frozen[i] || 0)).toFixed(4)));
+    const cusum   = d.cusum.slice(0, days);
+    const thresh  = Array(days).fill(d.threshold);
+
+    const canvas = document.getElementById('dr-main-canvas');
+    if (mainChart) mainChart.destroy();
+
+    mainChart = new Chart(canvas, {
+      type: 'line',
+      plugins: [alertRegionPlugin],
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Frozen baseline',
+            data: frozen,
+            borderColor: '#8a9bb0',
+            borderDash: [6, 3],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension: 0,
+            yAxisID: 'yLeft',
+            fill: false,
+          },
+          {
+            label: 'Rolling baseline',
+            data: rolling,
+            borderColor: '#e0a030',
+            borderWidth: 2,
+            pointRadius: 3,
+            pointBackgroundColor: '#e0a030',
+            tension: 0.3,
+            yAxisID: 'yLeft',
+            fill: false,
+          },
+          {
+            label: 'Drift from frozen',
+            data: drift,
+            borderColor: '#e5384f',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension: 0.3,
+            yAxisID: 'yLeft',
+            fill: true,
+            backgroundColor: 'rgba(229,56,79,0.15)',
+          },
+          {
+            label: 'CUSUM',
+            data: cusum,
+            borderColor: '#e8742a',
+            borderWidth: 3,
+            pointRadius: 4,
+            pointBackgroundColor: '#e8742a',
+            tension: 0.2,
+            yAxisID: 'yRight',
+            fill: false,
+          },
+          {
+            label: 'Alert threshold',
+            data: thresh,
+            borderColor: 'rgba(239,230,218,0.60)',
+            borderDash: [5, 4],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension: 0,
+            yAxisID: 'yRight',
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400 },
+        plugins: {
+          alertRegion: { alertIndex: d.alertIndex, revealedDays: days },
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: TICK_COLOR,
+              font: { family: FONT_FAMILY, size: 11 },
+              usePointStyle: true,
+              pointStyleWidth: 20,
+              padding: 16,
+            },
+          },
+          tooltip: {
+            backgroundColor: '#1a0a0e',
+            borderColor: '#b3122a',
+            borderWidth: 1,
+            titleColor: '#efe6da',
+            bodyColor: 'rgba(239,230,218,0.75)',
+            padding: 10,
+          },
+        },
+        scales: {
+          x: {
+            ...darkScaleDefaults(),
+            border: { color: GRID_COLOR },
+          },
+          yLeft: {
+            ...darkScaleDefaults(),
+            position: 'left',
+            min: 0,
+            max: 0.7,
+            border: { color: GRID_COLOR },
+            title: {
+              display: true,
+              text: 'Distance from approved behavior',
+              color: TICK_COLOR,
+              font: { family: FONT_FAMILY, size: 11 },
+            },
+          },
+          yRight: {
+            ...darkScaleDefaults({ grid: { display: false } }),
+            position: 'right',
+            min: 0,
+            max: 16,
+            border: { color: GRID_COLOR },
+            title: {
+              display: true,
+              text: 'CUSUM (cumulative drift)',
+              color: TICK_COLOR,
+              font: { family: FONT_FAMILY, size: 11 },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // ── Rebuild main chart with updated day count ─────────────────────────
+  function updateMainChart(d, days) {
+    if (!mainChart) { buildMainChart(d, days); return; }
+
+    const labels  = d.labels.slice(0, days);
+    const frozen  = d.frozen.slice(0, days);
+    const rolling = d.rolling.slice(0, days);
+    const drift   = rolling.map((v, i) => parseFloat((v - (d.frozen[i] || 0)).toFixed(4)));
+    const cusum   = d.cusum.slice(0, days);
+    const thresh  = Array(days).fill(d.threshold);
+
+    mainChart.data.labels             = labels;
+    mainChart.data.datasets[0].data   = frozen;
+    mainChart.data.datasets[1].data   = rolling;
+    mainChart.data.datasets[2].data   = drift;
+    mainChart.data.datasets[3].data   = cusum;
+    mainChart.data.datasets[4].data   = thresh;
+    mainChart.options.plugins.alertRegion.revealedDays = days;
+    mainChart.update('active');
+  }
+
+  // ── Build naive bar chart ────────────────────────────────────────────
+  function buildNaiveChart(d, days) {
+    const canvas = document.getElementById('dr-naive-canvas');
+    if (naiveChart) naiveChart.destroy();
+
+    const n = Math.min(days, d.rolling.length);
+    const barLabels = d.labels.slice(1, n);
+    const deltas    = d.rolling.slice(1, n).map((v, i) =>
+      parseFloat((v - d.rolling[i]).toFixed(4))
+    );
+    const threshold  = d.naiveThreshold || 0.15;
+    const threshLine = Array(barLabels.length).fill(threshold);
+
+    naiveChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: barLabels,
+        datasets: [
+          {
+            label: 'Day-over-day change',
+            data: deltas,
+            backgroundColor: 'rgba(224,160,48,0.55)',
+            borderColor: '#e0a030',
+            borderWidth: 1,
+            borderRadius: 3,
+          },
+          {
+            label: 'Naive alert threshold',
+            data: threshLine,
+            type: 'line',
+            borderColor: 'rgba(239,230,218,0.5)',
+            borderDash: [4, 3],
+            borderWidth: 1.5,
+            pointRadius: 0,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 300 },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: TICK_COLOR,
+              font: { family: FONT_FAMILY, size: 10 },
+              usePointStyle: true,
+              padding: 10,
+            },
+          },
+          tooltip: {
+            backgroundColor: '#1a0a0e',
+            borderColor: '#b3122a',
+            borderWidth: 1,
+            titleColor: '#efe6da',
+            bodyColor: 'rgba(239,230,218,0.75)',
+            padding: 8,
+          },
+        },
+        scales: {
+          x: darkScaleDefaults({ border: { color: GRID_COLOR } }),
+          y: {
+            ...darkScaleDefaults(),
+            min: 0,
+            max: threshold * 2,
+            border: { color: GRID_COLOR },
+          },
+        },
+      },
+    });
+  }
+
+  function updateNaiveChart(d, days) {
+    if (!naiveChart) { buildNaiveChart(d, days); return; }
+    const n = Math.min(days, d.rolling.length);
+    const barLabels = d.labels.slice(1, n);
+    const deltas    = d.rolling.slice(1, n).map((v, i) =>
+      parseFloat((v - d.rolling[i]).toFixed(4))
+    );
+    const threshold  = d.naiveThreshold || 0.15;
+    const threshLine = Array(barLabels.length).fill(threshold);
+
+    naiveChart.data.labels           = barLabels;
+    naiveChart.data.datasets[0].data = deltas;
+    naiveChart.data.datasets[1].data = threshLine;
+    naiveChart.update('active');
+  }
+
+  // ── Callouts ─────────────────────────────────────────────────────────
+  function renderCallouts() {
+    if (!scenario) return;
+    const d = scenario.drift;
+    calloutsEl.innerHTML = (d.callouts || []).map((c, i) => `
+      <div class="dr-callout-row" id="dr-callout-${i}">
+        <div class="dr-callout-num">${String(i + 1).padStart(2, '0')}</div>
+        <div class="dr-callout-text">${c.text}</div>
+      </div>
+    `).join('');
+  }
+
+  function lightCallouts(days) {
+    if (!scenario) return;
+    const d = scenario.drift;
+    (d.callouts || []).forEach((c, i) => {
+      const el = document.getElementById(`dr-callout-${i}`);
+      if (!el) return;
+      if (days > c.index) {
+        el.classList.remove('lit', 'lit-alert');
+        el.classList.add(c.index === d.alertIndex ? 'lit-alert' : 'lit');
+      }
+    });
+  }
+
+  // ── Explainers ───────────────────────────────────────────────────────
+  function renderExplainers() {
+    if (!scenario) return;
+    const exps = scenario.drift.explainers || [];
+    explainersEl.innerHTML = exps.map(e => `
+      <div class="dr-explainer-card">
+        <div class="dr-explainer-title">${e.title}</div>
+        <div class="dr-explainer-text">${e.text}</div>
+      </div>
+    `).join('');
+  }
+
+  // ── Reveal step ──────────────────────────────────────────────────────
+  function revealStep() {
+    if (!scenario) return;
+    const d    = scenario.drift;
+    const total = d.labels.length;
+
+    revealed++;
+    overlayEl.classList.add('hidden');
+
+    updateMainChart(d, revealed);
+    updateNaiveChart(d, revealed);
+    lightCallouts(revealed);
+
+    // Alert moment
+    if (revealed > d.alertIndex) {
+      statusChipEl.textContent = `Drift detected at day ${d.alertIndex + 1}`;
+      statusChipEl.classList.add('alert');
+      mainPanelEl.classList.add('alert-flash');
+      setTimeout(() => mainPanelEl.classList.remove('alert-flash'), 1200);
+    }
+
+    // After last day, show naive status
+    if (revealed >= total) {
+      naiveStatEl.classList.add('visible');
+      return; // done
+    }
+
+    // Schedule next step
+    const interval = (800 / speed);
+    revealTimer = setTimeout(revealStep, interval);
+  }
+
+  // ── Public: init ─────────────────────────────────────────────────────
+  function drInit() {
+    renderCallouts();
+    renderExplainers();
+  }
+
+  // ── Public: start ─────────────────────────────────────────────────────
+  function drStart() {
+    if (started) return;
+    started = true;
+    if (!scenario) return;
+
+    const d = scenario.drift;
+    // Build charts at 1 day so axes are visible immediately
+    buildMainChart(d, 1);
+    buildNaiveChart(d, 1);
+    revealed = 1;
+    overlayEl.classList.add('hidden');
+    lightCallouts(1);
+
+    revealTimer = setTimeout(revealStep, 800 / speed);
+  }
+
+  // ── Public: onNavigate ───────────────────────────────────────────────
+  function drOnNavigate() {
+    if (!started) return;
+    // Resize charts in case canvas was hidden during layout
+    if (mainChart)  mainChart.resize();
+    if (naiveChart) naiveChart.resize();
+  }
+
+  // ── Public: reset ────────────────────────────────────────────────────
+  function drReset() {
+    if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
+    if (mainChart)  { mainChart.destroy();  mainChart  = null; }
+    if (naiveChart) { naiveChart.destroy(); naiveChart = null; }
+
+    started  = false;
+    revealed = 0;
+
+    overlayEl.classList.remove('hidden');
+    statusChipEl.textContent = 'Monitoring';
+    statusChipEl.classList.remove('alert');
+    naiveStatEl.classList.remove('visible');
+    mainPanelEl.classList.remove('alert-flash');
+
+    renderCallouts(); // re-render dim callouts
+  }
+
+  return { init: drInit, start: drStart, onNavigate: drOnNavigate, reset: drReset };
 })();
 
 // ── Start ──────────────────────────────────────────────────────────────

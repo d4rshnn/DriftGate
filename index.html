@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -282,14 +283,54 @@
         <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
       </section>
 
-      <!-- DRIFT SCREEN (placeholder) -->
+      <!-- DRIFT SCREEN -->
       <section class="screen" id="screen-drift">
-        <div class="screen-header">
-          <h2 class="screen-title">Drift Chart</h2>
+
+        <!-- Header row -->
+        <div class="dr-header-row">
+          <div class="dr-title-col">
+            <h2 class="screen-title">Drift Chart</h2>
+            <div class="dr-caption">Illustrative data: a slow-drift attack across 10 days</div>
+          </div>
+          <div class="dr-status-chip" id="dr-status-chip">Monitoring</div>
         </div>
-        <div class="panel placeholder-panel">
-          <p class="placeholder-text">Drift Chart — coming in Step 4</p>
+
+        <!-- Main row -->
+        <div class="dr-main-row">
+
+          <!-- LEFT: main chart -->
+          <div class="panel dr-main-panel" id="dr-main-panel">
+            <div class="panel-title">DriftGate: frozen baseline + CUSUM</div>
+            <div class="dr-chart-wrap" id="dr-chart-wrap">
+              <canvas id="dr-main-canvas"></canvas>
+              <div class="dr-overlay-msg" id="dr-overlay-msg">Slow-drift scenario not started yet</div>
+            </div>
+          </div>
+
+          <!-- RIGHT: naive + callouts -->
+          <div class="dr-right-col">
+
+            <!-- Naive card -->
+            <div class="panel dr-naive-panel">
+              <div class="panel-title">Naive detector (compares to yesterday)</div>
+              <div class="dr-naive-chart-wrap">
+                <canvas id="dr-naive-canvas"></canvas>
+              </div>
+              <div class="dr-naive-status" id="dr-naive-status">Never triggered. Every day looks normal.</div>
+            </div>
+
+            <!-- Callouts card -->
+            <div class="panel dr-callouts-panel">
+              <div class="panel-title">What is happening</div>
+              <div class="dr-callouts-list" id="dr-callouts-list"></div>
+            </div>
+
+          </div>
         </div>
+
+        <!-- Bottom explainer strip -->
+        <div class="dr-explainers" id="dr-explainers"></div>
+
         <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
       </section>
 
