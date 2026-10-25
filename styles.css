@@ -506,16 +506,6 @@ body { display: grid; grid-template-rows: var(--topbar-h) var(--chapter-h) minma
 .end-kpi-lbl { font-size: 11px; color: var(--text-muted); }
 .end-kpi-eval { font-size: 10px; color: var(--text-muted-2); }
 
-.end-countdown-wrap { display: flex; flex-direction: column; gap: 6px; }
-.end-countdown-track {
-  width: 100%; height: 3px; background: var(--track);
-  border-radius: 2px; overflow: hidden;
-}
-.end-countdown-bar { height: 100%; width: 100%; background: var(--accent); transition: width 3s linear; }
-.end-countdown-label {
-  font-size: 12px; color: var(--text-muted); text-align: center;
-}
-
 /* ── Callout overlay ─────────────────────────────────────────────────────── */
 .callout-layer {
   position: fixed; inset: 0;
@@ -546,12 +536,11 @@ body { display: grid; grid-template-rows: var(--topbar-h) var(--chapter-h) minma
 
 /* ── Caption bar ─────────────────────────────────────────────────────────── */
 .caption-bar {
-  position: absolute;
+  position: fixed;
   bottom: 12px;
-  left: 50%;
+  left: calc(50vw + 100px);
   transform: translateX(-50%);
-  max-width: 900px;
-  width: 90%;
+  width: min(900px, max(0px, calc(90vw - 180px)));
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -744,6 +733,7 @@ body { display: grid; grid-template-rows: var(--topbar-h) var(--chapter-h) minma
   background: var(--watching-bg);
   border: 1px solid var(--watching-border);
   border-radius: 6px; padding: 2px 8px;
+  white-space: nowrap;
 }
 
 .tl-card {

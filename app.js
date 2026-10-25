@@ -5,7 +5,6 @@
 'use strict';
 
 const INTRO_HOLD_MS = 3000;
-const END_HOLD_MS = 3000;
 
 // ── State ──────────────────────────────────────────────────────────────
 let scenario = null;
@@ -274,7 +273,6 @@ function doReset() {
     agents = scenario.agents.map(agent => ({ ...agent }));
     renderAgentTable();
   }
-  updateClock();
   switchScreen('overview');
   timeline.reset();
   alertScreen.reset();
@@ -544,10 +542,8 @@ const endCard = (() => {
   const linesEl   = document.getElementById('end-lines');
   const checkLinesEl = document.getElementById('end-check-lines');
   const kpisEl    = document.getElementById('end-kpis');
-  const countdownBar = document.getElementById('end-countdown-bar');
   let shown = false;
   let lineTimers = [];
-  let reloadTimer = null;
 
   function show() {
     if (shown) return;
@@ -577,8 +573,6 @@ const endCard = (() => {
     `).join('');
 
     overlayEl.style.display = 'flex';
-    countdownBar.style.width = '100%';
-    requestAnimationFrame(() => { countdownBar.style.width = '0%'; });
 
     const revealEls = [...linesEl.querySelectorAll('.end-line'), ...checkLinesEl.querySelectorAll('.end-check-line')];
     const staggerCount = Math.max(1, (sum.lines || []).length);
@@ -586,7 +580,6 @@ const endCard = (() => {
       const t = setTimeout(() => el.classList.add('revealed'), (i % staggerCount) * 180 + 120);
       lineTimers.push(t);
     });
-    reloadTimer = setTimeout(() => window.location.reload(), END_HOLD_MS);
   }
 
   function hide() {
@@ -596,10 +589,7 @@ const endCard = (() => {
   function ecReset() {
     lineTimers.forEach(t => clearTimeout(t));
     lineTimers = [];
-    if (reloadTimer) clearTimeout(reloadTimer);
-    reloadTimer = null;
     shown = false;
-    countdownBar.style.width = '100%';
     hide();
   }
 
@@ -784,7 +774,7 @@ const timeline = (() => {
   function buildLinkConnector() {
     const link = document.createElement('div');
     link.className = 'tl-link-connector';
-    link.innerHTML = '<span class="tl-link-line"></span><span class="tl-link-chip">Linked: came right after untrusted input</span>';
+    link.innerHTML = '<span class="tl-link-line"></span><span class="tl-link-chip" title="Came right after untrusted input">Linked</span>';
     return link;
   }
 
