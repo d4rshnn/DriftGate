@@ -9,11 +9,11 @@
   "events": [
     { "t": 5,   "screen": "overview",  "agent": "procurement-01",  "text": "Checked supplier price: steel rod",             "tags": [],                "score": 4,  "status": "healthy"     },
     { "t": 8,   "screen": "timeline",  "agent": "hr-assistant-02", "text": "Answered leave query for employee #4421",       "tags": [],                "score": 3,  "status": "healthy",    "silent": true },
-    { "t": 12,  "screen": "timeline",  "agent": "support-04",      "text": "Resolved ticket 2231 – password reset",         "tags": [],                "score": 2,  "status": "healthy",    "silent": true },
+    { "t": 12,  "screen": "timeline",  "agent": "support-04",      "text": "Resolved ticket 2231 \u2013 password reset",         "tags": [],                "score": 2,  "status": "healthy",    "silent": true },
     { "t": 14,  "screen": "timeline",  "agent": "hr-assistant-02", "text": "Looked up employee benefits policy",            "tags": [],                "score": 3,  "status": "healthy",    "silent": true },
     { "t": 15,  "screen": "timeline",  "agent": "procurement-01",  "text": "Created purchase request PR-1042",              "tags": [],                "score": 5,  "status": "healthy"     },
     { "t": 18,  "screen": "timeline",  "agent": "orchestrator-03", "text": "Delegated task to procurement-01",              "tags": [],                "score": 5,  "status": "healthy",    "silent": true },
-    { "t": 20,  "screen": "timeline",  "agent": "support-04",      "text": "Replied to ticket 2235 – VPN setup",            "tags": [],                "score": 2,  "status": "healthy",    "silent": true },
+    { "t": 20,  "screen": "timeline",  "agent": "support-04",      "text": "Replied to ticket 2235 \u2013 VPN setup",            "tags": [],                "score": 2,  "status": "healthy",    "silent": true },
     { "t": 22,  "screen": "timeline",  "agent": "procurement-01",  "text": "Compared 3 supplier quotes for steel rod",      "tags": [],                "score": 5,  "status": "healthy",    "silent": true },
     { "t": 25,  "screen": "timeline",  "agent": "orchestrator-03", "text": "Scheduled nightly report compilation",          "tags": [],                "score": 5,  "status": "healthy",    "silent": true },
     { "t": 27,  "screen": "timeline",  "agent": "hr-assistant-02", "text": "Generated onboarding checklist for new hire",  "tags": [],                "score": 3,  "status": "healthy",    "silent": true },
@@ -80,7 +80,7 @@
     "callouts": [
       { "index": 0, "text": "Day 1: behavior matches the approved baseline" },
       { "index": 4, "text": "Day 5: small daily changes, each one looks normal compared to yesterday" },
-      { "index": 6, "text": "Day 7: CUSUM crosses the threshold — alert raised" }
+      { "index": 6, "text": "Day 7: CUSUM crosses the threshold \u2014 alert raised" }
     ],
     "explainers": [
       { "title": "Why a frozen baseline", "text": "The reference never updates by itself, so slow drift cannot teach the system that the attack is normal." },
@@ -90,12 +90,12 @@
   },
   "chain": {
     "nodes": [
-      { "id": "pdf",            "label": "Supplier PDF",    "status": "untrusted",   "icon": "doc",   "subtitle": "untrusted source", "x": 60,  "y": 220 },
-      { "id": "procurement-01", "label": "Procurement-01",  "status": "quarantined", "icon": "robot", "subtitle": "Procurement",      "x": 300, "y": 220 },
-      { "id": "orchestrator-03","label": "Orchestrator-03", "status": "healthy",     "icon": "robot", "subtitle": "Orchestrator",     "x": 560, "y": 220 },
-      { "id": "ext",            "label": "External API",    "status": "blocked",     "icon": "cloud", "subtitle": "outbound endpoint", "x": 820, "y": 80  },
-      { "id": "hr-assistant-02","label": "HR-Assistant-02", "status": "healthy",     "icon": "robot", "subtitle": "HR assistant",     "x": 820, "y": 220 },
-      { "id": "support-04",     "label": "Support-04",      "status": "healthy",     "icon": "robot", "subtitle": "Support",          "x": 820, "y": 360 }
+      { "id": "pdf",            "label": "Supplier PDF",    "status": "untrusted",   "icon": "doc",   "subtitle": "untrusted source", "x": 30,  "y": 220 },
+      { "id": "procurement-01", "label": "Procurement-01",  "status": "quarantined", "icon": "robot", "subtitle": "Procurement",      "x": 270, "y": 220 },
+      { "id": "orchestrator-03","label": "Orchestrator-03", "status": "healthy",     "icon": "robot", "subtitle": "Orchestrator",     "x": 510, "y": 220 },
+      { "id": "ext",            "label": "External API",    "status": "blocked",     "icon": "cloud", "subtitle": "outbound endpoint", "x": 770, "y": 80  },
+      { "id": "hr-assistant-02","label": "HR-Assistant-02", "status": "healthy",     "icon": "robot", "subtitle": "HR assistant",     "x": 770, "y": 220 },
+      { "id": "support-04",     "label": "Support-04",      "status": "healthy",     "icon": "robot", "subtitle": "Support",          "x": 770, "y": 360 }
     ],
     "edges": [
       { "from": "pdf",            "to": "procurement-01",  "scope": "reads input"   },
@@ -205,7 +205,7 @@
         "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":100,"ext":100,"hr-assistant-02":100,"support-04":100 }
       },
       {
-        "log": "All downstream agents compromised — no containment",
+        "log": "All downstream agents compromised \u2014 no containment",
         "nodeStatus": { "pdf":"untrusted","procurement-01":"quarantined","orchestrator-03":"quarantined","ext":"quarantined","hr-assistant-02":"quarantined","support-04":"quarantined" },
         "edgeState":  { "pdf>procurement-01":"poisoned","procurement-01>orchestrator-03":"poisoned","orchestrator-03>ext":"poisoned","orchestrator-03>hr-assistant-02":"poisoned","orchestrator-03>support-04":"poisoned" },
         "packet": null,
@@ -214,23 +214,88 @@
       }
     ]
   },
+  "explainers": [
+    {
+      "title": "The problem",
+      "lines": [
+        "Companies now give AI agents their own logins and permissions.",
+        "Agents read emails, PDFs and web pages, and a hidden instruction in any of them can hijack the agent.",
+        "The token stays valid, so ordinary security checks stay silent."
+      ],
+      "note": "This has happened: in 2025 a crafted email leaked data from Microsoft 365 Copilot with no click (CVE-2025-32711)."
+    },
+    {
+      "title": "The idea",
+      "lines": [
+        "Judge behavior, not credentials.",
+        "Learn what normal looks like for each agent role.",
+        "Compare every action with the declared role and score the drift, with reasons.",
+        "Respond in proportion, without stopping legitimate work."
+      ],
+      "note": ""
+    },
+    {
+      "title": "How DriftGate works",
+      "lines": [
+        "1  Action gateway: checks every action",
+        "2  Drift engine: learned behavior, baselines and sequences",
+        "3  Decision: combines signals into a 0\u2013100 score",
+        "4  Graded response: allow, ask, restrict, quarantine",
+        "5  Observability and learning: audit trail and feedback"
+      ],
+      "note": ""
+    },
+    {
+      "title": "The story",
+      "lines": [
+        "A procurement agent reads a poisoned supplier PDF.",
+        "Watch DriftGate catch it, contain it, and keep every other agent working."
+      ],
+      "note": "All data in this demo is scripted and simulated."
+    }
+  ],
   "captions": [
-    { "t": 2,   "dur": 6,  "text": "A normal day: four agents, all healthy" },
-    { "t": 27,  "dur": 6,  "text": "A supplier PDF carries a hidden instruction" },
-    { "t": 43,  "dur": 6,  "text": "The agent obeys and reaches for HR salary files" },
-    { "t": 56,  "dur": 8,  "text": "Valid token, but behavior no longer matches the declared role" },
-    { "t": 68,  "dur": 7,  "text": "Action blocked. Token authority reduced to role minimum" },
-    { "t": 72,  "dur": 6,  "text": "Canary file touched — high-confidence compromise" },
-    { "t": 88,  "dur": 7,  "text": "Data exfiltration attempt detected. Agent quarantined" },
-    { "t": 102, "dur": 8,  "text": "A slow-drift attack: each day looks normal to a naive detector" },
-    { "t": 127, "dur": 8,  "text": "DriftGate contains the blast radius — other agents unaffected" }
+    { "t": 1,   "dur": 5,  "title": "A normal day",                    "text": "Four agents are working: procurement, HR, orchestrator and support. Each has a declared role, and DriftGate watches every action they take." },
+    { "t": 7,   "dur": 5,  "title": "Scores stay low",                 "text": "Risk scores are low because each action matches the agent\u2019s role contract and what DriftGate has learned as normal for that role." },
+    { "t": 13,  "dur": 5,  "title": "Learning normal behavior",        "text": "DriftGate learns which tools, files and action sequences are normal for each role. A new agent starts from its role\u2019s profile, protected from day one." },
+    { "t": 20,  "dur": 6,  "title": "Now an outsider strikes",         "text": "An attacker has planted a hidden instruction inside a supplier PDF. Nobody stole a password or broke in. The agent simply reads a document." },
+    { "t": 27,  "dur": 6,  "title": "Untrusted input enters",          "text": "The agent opens the PDF. DriftGate marks the session as tainted, because content from outside the company is now inside the agent\u2019s context." },
+    { "t": 34,  "dur": 6,  "title": "Allowed, but watched",            "text": "Reading supplier files is part of the job, so nothing is blocked. The risk score rises a little and the session is watched more closely." },
+    { "t": 42,  "dur": 5,  "title": "The agent obeys",                 "text": "The hidden instruction takes over. The agent reaches for HR salary files, which a procurement agent has no reason to touch." },
+    { "t": 48,  "dur": 6,  "title": "The link is the clue",            "text": "DriftGate connects the two events: the odd action came right after untrusted input. That link is the strongest sign of an injection attack." },
+    { "t": 55,  "dur": 7,  "title": "A permission check sees nothing", "text": "The token is valid, so a plain access check says allowed. DriftGate scores the behavior 85 out of 100 and lists every reason." },
+    { "t": 63,  "dur": 6,  "title": "Restrict, not shut down",         "text": "Only the risky action is blocked and the token shrinks to the role\u2019s minimum. Purchase work continues, so the business is not disrupted." },
+    { "t": 70,  "dur": 6,  "title": "A decoy gives it away",           "text": "The agent touches a decoy file that no real workflow ever uses. A canary trap hit is near-certain proof of compromise." },
+    { "t": 77,  "dur": 7,  "title": "Signals add up",                  "text": "Contract breach, taint link and canary hit are combined into one score with reasons, so the team sees why, not just that something fired." },
+    { "t": 85,  "dur": 7,  "title": "Data tries to leave",             "text": "The agent tries to send data to an unapproved server. Risk reaches 97, so DriftGate quarantines it: token revoked, agent isolated, team notified." },
+    { "t": 93,  "dur": 6,  "title": "Graded response",                 "text": "Responses escalate with risk: allow, ask a human, restrict, quarantine. Each level is scoped, so the rest of the business keeps running." },
+    { "t": 101, "dur": 6,  "title": "A quieter attack",                "text": "An attacker can change behavior a tiny bit each day to stay under the radar. This chart shows ten days of slow drift." },
+    { "t": 108, "dur": 6,  "title": "Why a naive check fails",         "text": "Compared with yesterday, every day looks normal, so the naive detector on the right never fires. The change only shows when days add up." },
+    { "t": 115, "dur": 7,  "title": "Frozen baseline plus CUSUM",      "text": "DriftGate compares against approved behavior that never updates by itself, and adds up small deviations. On day 7 the total crosses the limit." },
+    { "t": 126, "dur": 7,  "title": "Agents call other agents",        "text": "In a chain, one compromised agent could pass poisoned output downstream. DriftGate tags its output as untrusted and cuts the handoff." },
+    { "t": 134, "dur": 7,  "title": "Contained, not spread",           "text": "Only the compromised agent is quarantined and the others keep working. Use the toggle to see how far it would have spread without DriftGate." }
+  ],
+  "callouts": [
+    { "t": 7,   "dur": 4, "target": "overview-table",   "label": "Risk score per agent" },
+    { "t": 35,  "dur": 4, "target": "timeline-gauge",   "label": "Live risk score for the selected agent" },
+    { "t": 48,  "dur": 5, "target": "timeline-link",    "label": "Linked: came right after untrusted input" },
+    { "t": 56,  "dur": 4, "target": "alert-compare",    "label": "Permission check vs DriftGate" },
+    { "t": 60,  "dur": 4, "target": "alert-reasons",    "label": "Every point of risk is explained" },
+    { "t": 64,  "dur": 4, "target": "alert-ladder",     "label": "Response matches the score" },
+    { "t": 71,  "dur": 4, "target": "timeline-latest",  "label": "Canary trap hit" },
+    { "t": 88,  "dur": 4, "target": "alert-signals",    "label": "Canary trap fired: conclusive" },
+    { "t": 102, "dur": 5, "target": "drift-chart",      "label": "Rolling behavior drifts from the frozen baseline" },
+    { "t": 109, "dur": 5, "target": "drift-naive",      "label": "Naive detector never fires" },
+    { "t": 117, "dur": 5, "target": "drift-chart",      "label": "CUSUM crosses the threshold on day 7" },
+    { "t": 128, "dur": 5, "target": "chain-graph",      "label": "Poisoned handoff cut here" },
+    { "t": 135, "dur": 5, "target": "chain-counters",   "label": "Blast radius: 1 compromised, 0 affected" }
   ],
   "chapters": [
-    { "t": 0,   "name": "Normal ops"   },
-    { "t": 28,  "name": "Injection"    },
-    { "t": 45,  "name": "Alert raised" },
-    { "t": 100, "name": "Drift"        },
-    { "t": 125, "name": "Chain"        }
+    { "t": 0,   "name": "Normal day"        },
+    { "t": 20,  "name": "Hidden instruction" },
+    { "t": 42,  "name": "Attack caught"     },
+    { "t": 100, "name": "Slow drift"        },
+    { "t": 125, "name": "Chain contained"   }
   ],
   "summary": {
     "title": "DriftGate stopped what permission checks missed",
@@ -240,6 +305,13 @@
       "Canary hit and new exfiltration destination escalated to quarantine",
       "Blast radius contained: 3 downstream agents never compromised",
       "Naive permission check would have allowed every single action"
+    ],
+    "checkLines": [
+      "Learns normal agent behavior",
+      "Compares it with the declared role",
+      "Detects drift despite valid credentials",
+      "Explains every alert with a risk score",
+      "Restricts or isolates without disrupting legitimate work"
     ]
   }
 }

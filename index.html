@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DriftGate</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 2 L28 7 L28 16 C28 23 22 29 16 31 C10 29 4 23 4 16 L4 7 Z' fill='%23b3122a'/><path d='M12 16 L15 19 L21 13' stroke='%23efe6da' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 2 L28 7 L28 16 C28 23 22 29 16 31 C10 29 4 23 4 16 L4 7 Z' fill='%232f5bea'/><path d='M12 16 L15 19 L21 13' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
@@ -15,19 +15,18 @@
 
   <!-- INTRO OVERLAY -->
   <div class="intro-overlay" id="intro-overlay">
-    <div class="intro-glow"></div>
+    <div class="intro-progress-track">
+      <div class="intro-progress-fill" id="intro-progress-fill"></div>
+    </div>
     <div class="intro-content">
       <svg class="intro-shield" viewBox="0 0 80 90" xmlns="http://www.w3.org/2000/svg">
-        <path d="M40 4 L72 16 L72 42 C72 62 58 76 40 84 C22 76 8 62 8 42 L8 16 Z" fill="none" stroke="#b3122a" stroke-width="3"/>
-        <path d="M40 4 L72 16 L72 42 C72 62 58 76 40 84 C22 76 8 62 8 42 L8 16 Z" fill="#b3122a" opacity="0.15"/>
-        <path d="M28 44 L37 53 L54 36" stroke="#efe6da" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M40 4 L72 16 L72 42 C72 62 58 76 40 84 C22 76 8 62 8 42 L8 16 Z" fill="none" stroke="#2f5bea" stroke-width="3"/>
+        <path d="M40 4 L72 16 L72 42 C72 62 58 76 40 84 C22 76 8 62 8 42 L8 16 Z" fill="#2f5bea" opacity="0.10"/>
+        <path d="M28 44 L37 53 L54 36" stroke="#2f5bea" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <div class="intro-brand">DriftGate</div>
       <div class="intro-tagline">Valid token. Not valid behavior.</div>
       <div class="intro-byline">by Gatekeepers &middot; D3COY 1.0</div>
-      <div class="intro-demo-note">Simulated concept demo</div>
-      <button class="intro-start-btn" id="intro-start">Start demo</button>
-      <button class="intro-skip-btn" id="intro-skip">Skip intro</button>
     </div>
   </div>
 
@@ -35,46 +34,50 @@
   <div class="end-overlay" id="end-overlay" style="display:none">
     <div class="end-card">
       <div class="end-title" id="end-title"></div>
-      <div class="end-lines" id="end-lines"></div>
+      <div class="end-cols">
+        <div class="end-col">
+          <div class="end-col-heading">What happened</div>
+          <div class="end-lines" id="end-lines"></div>
+        </div>
+        <div class="end-col">
+          <div class="end-col-heading">Meets the problem statement</div>
+          <div class="end-check-lines" id="end-check-lines"></div>
+        </div>
+      </div>
       <div class="end-kpis" id="end-kpis"></div>
-      <div class="end-btns">
-        <button class="btn btn-primary" id="end-replay">&#9654; Replay</button>
-        <button class="btn" id="end-close">Close</button>
+      <div class="end-countdown-wrap">
+        <div class="end-countdown-track">
+          <div class="end-countdown-bar" id="end-countdown-bar"></div>
+        </div>
+        <div class="end-countdown-label">Restarting analysis</div>
       </div>
     </div>
   </div>
 
-  <!-- SHORTCUT HELP -->
-  <button class="shortcut-help-btn" id="shortcut-help-btn" title="Keyboard shortcuts">?</button>
-  <div class="shortcut-tooltip" id="shortcut-tooltip">
-    <div class="shortcut-row"><span class="shortcut-key">Space</span><span>Play / Pause</span></div>
-    <div class="shortcut-row"><span class="shortcut-key">R</span><span>Reset</span></div>
-    <div class="shortcut-row"><span class="shortcut-key">1</span><span>1× speed</span></div>
-    <div class="shortcut-row"><span class="shortcut-key">2</span><span>2× speed</span></div>
-    <div class="shortcut-row"><span class="shortcut-key">F</span><span>Fullscreen</span></div>
-    <div class="shortcut-row"><span class="shortcut-key">C</span><span>Toggle captions</span></div>
-    <div class="shortcut-row"><span class="shortcut-key">H</span><span>Clean mode</span></div>
-  </div>
+  <!-- CALLOUT OVERLAY -->
+  <div class="callout-layer" id="callout-layer"></div>
 
   <!-- TOP BAR -->
   <header class="topbar">
-    <div class="topbar-left">
+    <div class="topbar-col topbar-left">
       <svg class="topbar-shield" viewBox="0 0 24 28" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 1 L22 5 L22 13 C22 20 17 25 12 27 C7 25 2 20 2 13 L2 5 Z" fill="#b3122a" opacity="0.85"/>
-        <path d="M8 14 L11 17 L16 11" stroke="#efe6da" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 1 L22 5 L22 13 C22 20 17 25 12 27 C7 25 2 20 2 13 L2 5 Z" fill="#2f5bea" opacity="0.9"/>
+        <path d="M8 14 L11 17 L16 11" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span class="brand">DriftGate</span>
       <span class="brand-sub">by Gatekeepers</span>
     </div>
-    <div class="topbar-center">
+    <div class="topbar-col topbar-center">
+      <span class="live-chip">
+        <span class="live-dot"></span>
+        Live analysis
+      </span>
+      <span class="clock-sep">&#xb7;</span>
       <span class="clock-label">Scenario</span>
       <span class="clock" id="clock">00:00</span>
     </div>
-    <div class="topbar-controls" id="topbar-controls">
-      <button class="btn btn-primary" id="btnPlay">&#9654; Play</button>
-      <button class="btn" id="btnPause">&#9646;&#9646; Pause</button>
-      <button class="btn" id="btnReset">&#8635; Reset</button>
-      <button class="btn btn-speed" id="btnSpeed">1x</button>
+    <div class="topbar-col topbar-right">
+      <span class="topbar-tag">Prototype &middot; simulated data</span>
     </div>
   </header>
 
@@ -141,6 +144,27 @@
           </svg>
           <span class="nav-label">Chain Graph</span>
         </li>
+
+        <div class="nav-divider">Reports</div>
+
+        <li class="nav-item" data-screen="metrics" data-manual="true">
+          <svg class="nav-svg-icon" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="11" width="3" height="7" rx="1" fill="currentColor"/>
+            <rect x="7" y="7" width="3" height="11" rx="1" fill="currentColor"/>
+            <rect x="12" y="3" width="3" height="15" rx="1" fill="currentColor"/>
+            <rect x="17" y="9" width="1.5" height="9" rx="0.75" fill="currentColor" opacity="0.5"/>
+          </svg>
+          <span class="nav-label">Metrics</span>
+        </li>
+        <li class="nav-item" data-screen="past-runs" data-manual="true">
+          <svg class="nav-svg-icon" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="3" width="16" height="3" rx="1" fill="currentColor"/>
+            <rect x="2" y="8" width="16" height="2.5" rx="1" fill="currentColor" opacity="0.65"/>
+            <rect x="2" y="12.5" width="16" height="2.5" rx="1" fill="currentColor" opacity="0.65"/>
+            <rect x="2" y="17" width="10" height="2" rx="1" fill="currentColor" opacity="0.4"/>
+          </svg>
+          <span class="nav-label">Past runs</span>
+        </li>
       </ul>
     </nav>
 
@@ -152,28 +176,18 @@
         <div class="screen-header">
           <h2 class="screen-title">Overview</h2>
         </div>
-
-        <!-- KPI TILES -->
         <div class="kpi-row" id="kpi-row"></div>
-
-        <!-- AGENTS TABLE -->
-        <div class="panel">
+        <div class="panel" data-callout="overview-table">
           <h3 class="panel-title">Active Agents</h3>
           <table class="agent-table" id="agent-table">
             <thead>
               <tr>
-                <th>Agent</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Risk Score</th>
-                <th>Last Action</th>
+                <th>Agent</th><th>Role</th><th>Status</th><th>Risk Score</th><th>Last Action</th>
               </tr>
             </thead>
             <tbody id="agent-tbody"></tbody>
           </table>
         </div>
-
-        <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
       </section>
 
       <!-- TIMELINE SCREEN -->
@@ -181,20 +195,13 @@
         <div class="screen-header">
           <h2 class="screen-title">Agent Timeline</h2>
         </div>
-
-        <!-- Agent selector cards -->
         <div class="tl-agent-cards" id="tl-agent-cards"></div>
-
-        <!-- Filter bar -->
         <div class="tl-filter-bar">
           <span class="tl-filter-label">Filter:</span>
           <button class="tl-filter-chip active" id="tl-filter-all" data-filter="all">All</button>
           <button class="tl-filter-chip" id="tl-filter-flagged" data-filter="flagged">Flagged only</button>
         </div>
-
-        <!-- Feed + Risk panel -->
         <div class="tl-body">
-          <!-- Feed -->
           <div class="tl-feed-wrap panel" id="tl-feed-wrap">
             <div class="tl-feed" id="tl-feed">
               <div class="tl-empty" id="tl-empty">
@@ -203,12 +210,8 @@
               </div>
             </div>
           </div>
-
-          <!-- Live risk panel -->
-          <div class="tl-risk-panel panel">
+          <div class="tl-risk-panel panel" data-callout="timeline-gauge">
             <div class="tl-risk-title">Live Risk</div>
-
-            <!-- Circular gauge -->
             <div class="tl-gauge-wrap">
               <svg class="tl-gauge-svg" viewBox="0 0 160 160" id="tl-gauge-svg">
                 <circle class="tl-gauge-bg"   cx="80" cy="80" r="64" />
@@ -217,13 +220,9 @@
                 <text class="tl-gauge-sub" x="80" y="100" id="tl-gauge-sub">risk score</text>
               </svg>
             </div>
-
-            <!-- Status chip under gauge -->
             <div class="tl-risk-status-wrap">
               <span class="status-chip" id="tl-risk-status-chip">healthy</span>
             </div>
-
-            <!-- Sparkline -->
             <div class="tl-sparkline-label">Score history</div>
             <div class="tl-sparkline-wrap">
               <svg class="tl-sparkline-svg" id="tl-sparkline-svg" viewBox="0 0 240 60" preserveAspectRatio="none">
@@ -231,8 +230,6 @@
                 <g id="tl-sparkline-dots"></g>
               </svg>
             </div>
-
-            <!-- Counters -->
             <div class="tl-counters">
               <div class="tl-counter">
                 <span class="tl-counter-val" id="tl-cnt-events">0</span>
@@ -249,14 +246,10 @@
             </div>
           </div>
         </div>
-
-        <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
       </section>
 
       <!-- ALERT SCREEN -->
       <section class="screen" id="screen-alert">
-
-        <!-- 1. HEADER ROW -->
         <div class="al-header-row">
           <div class="al-title-col">
             <h2 class="screen-title">Alert Detail</h2>
@@ -264,18 +257,12 @@
           </div>
           <div class="al-tabs" id="al-tabs"></div>
         </div>
-
-        <!-- EMPTY STATE -->
         <div class="al-empty" id="al-empty">
           <span class="tl-empty-dot"></span>
           No active alerts. Waiting for the scenario.
         </div>
-
-        <!-- ALERT BODY (hidden until an alert fires) -->
         <div class="al-body" id="al-body" style="display:none">
-
-          <!-- 2. COMPARISON STRIP -->
-          <div class="al-compare-strip">
+          <div class="al-compare-strip" data-callout="alert-compare">
             <div class="al-compare-card al-compare-plain">
               <div class="al-compare-icon">&#10003;</div>
               <div class="al-compare-verdict al-verdict-allow">ALLOWED</div>
@@ -290,16 +277,10 @@
               <div class="al-compare-label">DriftGate</div>
             </div>
           </div>
-
-          <!-- 3. MAIN ROW -->
           <div class="al-main-row">
-
-            <!-- LEFT: Why this score -->
             <div class="al-left">
               <div class="panel al-why-panel">
                 <div class="panel-title">Why this score</div>
-
-                <!-- Gauge + Signals row -->
                 <div class="al-gauge-signals-row">
                   <div class="al-gauge-wrap">
                     <svg class="tl-gauge-svg" viewBox="0 0 160 160" id="al-gauge-svg">
@@ -309,33 +290,23 @@
                       <text class="tl-gauge-sub" x="80" y="100">risk score</text>
                     </svg>
                   </div>
-                  <div class="al-signals-col" id="al-signals-col"></div>
+                  <div class="al-signals-col" id="al-signals-col" data-callout="alert-signals"></div>
                 </div>
-
-                <!-- Stacked bar -->
                 <div class="al-stacked-label">Score breakdown</div>
                 <div class="al-stacked-bar-wrap">
                   <div class="al-stacked-bar" id="al-stacked-bar"></div>
                   <div class="al-stacked-empty"></div>
                 </div>
                 <div class="al-stacked-legend" id="al-stacked-legend"></div>
-
-                <!-- Reasons list -->
-                <div class="al-reasons-list" id="al-reasons-list"></div>
-
+                <div class="al-reasons-list" id="al-reasons-list" data-callout="alert-reasons"></div>
                 <div class="al-score-total" id="al-score-total"></div>
               </div>
             </div>
-
-            <!-- RIGHT: evidence + judge -->
             <div class="al-right">
-              <!-- What the agent tried -->
               <div class="panel al-evidence-panel">
                 <div class="panel-title">What the agent tried</div>
                 <div class="al-evidence-trail" id="al-evidence-trail"></div>
               </div>
-
-              <!-- Judge card -->
               <div class="panel al-judge-panel">
                 <div class="panel-title">&#129302; Isolated judge verdict</div>
                 <blockquote class="al-judge-quote" id="al-judge-quote"></blockquote>
@@ -343,35 +314,22 @@
               </div>
             </div>
           </div>
-
-          <!-- 4. RESPONSE ROW -->
           <div class="panel al-response-panel">
             <div class="al-response-heading">Response taken</div>
-
-            <!-- Escalation ladder -->
-            <div class="al-ladder" id="al-ladder"></div>
-
+            <div class="al-ladder" id="al-ladder" data-callout="alert-ladder"></div>
             <div class="al-response-bottom">
-              <!-- Checklist -->
               <div class="al-checklist" id="al-checklist"></div>
-
-              <!-- Buttons -->
               <div class="al-action-btns">
                 <button class="btn btn-primary al-btn-approve" id="al-btn-approve">&#10003; Approve</button>
-                <button class="btn al-btn-reject"  id="al-btn-reject">&#10005; Reject</button>
+                <button class="btn al-btn-reject" id="al-btn-reject">&#10005; Reject</button>
               </div>
             </div>
           </div>
-
-        </div><!-- /al-body -->
-
-        <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
+        </div>
       </section>
 
       <!-- DRIFT SCREEN -->
       <section class="screen" id="screen-drift">
-
-        <!-- Header row -->
         <div class="dr-header-row">
           <div class="dr-title-col">
             <h2 class="screen-title">Drift Chart</h2>
@@ -379,50 +337,33 @@
           </div>
           <div class="dr-status-chip" id="dr-status-chip">Monitoring</div>
         </div>
-
-        <!-- Main row -->
         <div class="dr-main-row">
-
-          <!-- LEFT: main chart -->
-          <div class="panel dr-main-panel" id="dr-main-panel">
+          <div class="panel dr-main-panel" id="dr-main-panel" data-callout="drift-chart">
             <div class="panel-title">DriftGate: frozen baseline + CUSUM</div>
             <div class="dr-chart-wrap" id="dr-chart-wrap">
               <canvas id="dr-main-canvas"></canvas>
               <div class="dr-overlay-msg" id="dr-overlay-msg">Slow-drift scenario not started yet</div>
             </div>
           </div>
-
-          <!-- RIGHT: naive + callouts -->
           <div class="dr-right-col">
-
-            <!-- Naive card -->
-            <div class="panel dr-naive-panel">
+            <div class="panel dr-naive-panel" data-callout="drift-naive">
               <div class="panel-title">Naive detector (compares to yesterday)</div>
               <div class="dr-naive-chart-wrap">
                 <canvas id="dr-naive-canvas"></canvas>
               </div>
               <div class="dr-naive-status" id="dr-naive-status">Never triggered. Every day looks normal.</div>
             </div>
-
-            <!-- Callouts card -->
             <div class="panel dr-callouts-panel">
               <div class="panel-title">What is happening</div>
               <div class="dr-callouts-list" id="dr-callouts-list"></div>
             </div>
-
           </div>
         </div>
-
-        <!-- Bottom explainer strip -->
         <div class="dr-explainers" id="dr-explainers"></div>
-
-        <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
       </section>
 
       <!-- CHAIN SCREEN -->
       <section class="screen" id="screen-chain">
-
-        <!-- Header -->
         <div class="ch-header-row">
           <div class="ch-title-col">
             <h2 class="screen-title">Chain Graph</h2>
@@ -430,37 +371,33 @@
           </div>
           <div class="ch-toggle-wrap">
             <button class="ch-toggle-btn active" id="ch-toggle-with">With DriftGate</button>
-            <button class="ch-toggle-btn"        id="ch-toggle-without">Without DriftGate</button>
+            <button class="ch-toggle-btn" id="ch-toggle-without">Without DriftGate</button>
           </div>
         </div>
-
-        <!-- Main row -->
         <div class="ch-main-row">
-
-          <!-- LEFT: SVG graph -->
-          <div class="panel ch-graph-panel">
+          <div class="panel ch-graph-panel" data-callout="chain-graph">
             <div class="ch-graph-wrap" id="ch-graph-wrap">
               <svg id="ch-svg" viewBox="0 0 1000 520" preserveAspectRatio="xMidYMid meet"
-                   xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+                   xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <marker id="arr-normal" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L8,3 z" fill="#3a1018"/>
+                    <path d="M0,0 L0,6 L8,3 z" fill="#98a2b3"/>
                   </marker>
                   <marker id="arr-poison" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L8,3 z" fill="#e5384f"/>
+                    <path d="M0,0 L0,6 L8,3 z" fill="#d62f45"/>
                   </marker>
                   <marker id="arr-cut" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L8,3 z" fill="#e5384f"/>
+                    <path d="M0,0 L0,6 L8,3 z" fill="#d62f45"/>
                   </marker>
                   <marker id="arr-healthy" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                    <path d="M0,0 L0,6 L8,3 z" fill="#2fa66a"/>
+                    <path d="M0,0 L0,6 L8,3 z" fill="#1f9d63"/>
                   </marker>
                   <filter id="glow-green">
-                    <feGaussianBlur stdDeviation="3" result="blur"/>
+                    <feGaussianBlur stdDeviation="2" result="blur"/>
                     <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                   </filter>
                   <filter id="glow-red">
-                    <feGaussianBlur stdDeviation="4" result="blur"/>
+                    <feGaussianBlur stdDeviation="3" result="blur"/>
                     <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                   </filter>
                 </defs>
@@ -468,17 +405,13 @@
                 <g id="ch-nodes-g"></g>
                 <g id="ch-packets-g"></g>
                 <text id="ch-svg-overlay" x="500" y="270" text-anchor="middle"
-                      font-family="Inter,sans-serif" font-size="16" fill="rgba(138,122,110,0.8)"
+                      font-family="Inter,sans-serif" font-size="16" fill="#8a93a5"
                       font-style="italic">Chain scenario not started yet</text>
               </svg>
             </div>
           </div>
-
-          <!-- RIGHT: cards -->
           <div class="ch-right-col">
-
-            <!-- Blast radius -->
-            <div class="panel ch-blast-panel">
+            <div class="panel ch-blast-panel" data-callout="chain-counters">
               <div class="panel-title">Blast radius</div>
               <div class="ch-counters-row">
                 <div class="ch-counter">
@@ -495,24 +428,60 @@
                 </div>
               </div>
             </div>
-
-            <!-- Authority narrowing -->
             <div class="panel ch-auth-panel">
               <div class="panel-title">Authority narrowing</div>
               <div class="ch-auth-list" id="ch-auth-list"></div>
-              <div class="ch-auth-note">Delegated authority can only narrow, never grow</div>
+              <div class="ch-auth-note" id="ch-auth-note">Delegated authority can only narrow, never grow</div>
             </div>
-
-            <!-- Chain log -->
             <div class="panel ch-log-panel">
               <div class="panel-title">Chain log</div>
               <div class="ch-log-feed" id="ch-log-feed"></div>
             </div>
-
           </div>
         </div>
+      </section>
 
-        <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
+      <!-- METRICS SCREEN -->
+      <section class="screen" id="screen-metrics">
+        <div class="screen-header screen-header-row">
+          <h2 class="screen-title">Metrics</h2>
+          <span class="screen-tag">Simulated evaluation</span>
+        </div>
+        <div class="metrics-cards" id="metrics-cards"></div>
+        <div class="panel metrics-compare-panel" id="metrics-compare-panel"></div>
+        <div class="panel metrics-setup-panel" id="metrics-setup-panel"></div>
+      </section>
+
+      <!-- PAST RUNS SCREEN -->
+      <section class="screen" id="screen-past-runs">
+        <div class="screen-header screen-header-row">
+          <h2 class="screen-title">Past runs</h2>
+          <span class="screen-tag">Simulated evaluation</span>
+        </div>
+        <div class="pr-summary-row" id="pr-summary-row"></div>
+        <div class="pr-filter-bar">
+          <button class="pr-filter active" data-filter="all">All</button>
+          <button class="pr-filter" data-filter="attacks">Attacks</button>
+          <button class="pr-filter" data-filter="normal">Normal</button>
+          <button class="pr-filter" data-filter="missed">Missed</button>
+        </div>
+        <div class="panel pr-table-panel">
+          <table class="pr-table" id="pr-table">
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>Type</th>
+                <th>Scenario</th>
+                <th>Agent</th>
+                <th>Outcome</th>
+                <th>Actions until caught</th>
+                <th>Response</th>
+                <th>Permission check</th>
+              </tr>
+            </thead>
+            <tbody id="pr-tbody"></tbody>
+          </table>
+        </div>
       </section>
 
     </main>
