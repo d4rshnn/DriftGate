@@ -1,0 +1,7 @@
+{
+  "detectionRate": null,
+  "falseAlarmRate": null,
+  "actionsUntilCaught": null,
+  "permissionCheckDetects": null,
+  "label": "Simulated evaluation"
+}

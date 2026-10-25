@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DriftGate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="brand">DriftGate</span>
+      <span class="brand-sub">by Gatekeepers</span>
+    </div>
+    <div class="topbar-center">
+      <span class="clock-label">Scenario</span>
+      <span class="clock" id="clock">00:00</span>
+    </div>
+    <div class="topbar-controls">
+      <button class="btn btn-primary" id="btnPlay">&#9654; Play</button>
+      <button class="btn" id="btnPause">&#9646;&#9646; Pause</button>
+      <button class="btn" id="btnReset">&#8635; Reset</button>
+      <button class="btn btn-speed" id="btnSpeed">1x</button>
+    </div>
+  </header>
+
+  <!-- LAYOUT -->
+  <div class="layout">
+
+    <!-- LEFT NAV -->
+    <nav class="sidenav">
+      <ul class="nav-list">
+        <li class="nav-item active" data-screen="overview">
+          <span class="nav-icon">&#9776;</span>
+          <span class="nav-label">Overview</span>
+        </li>
+        <li class="nav-item" data-screen="timeline">
+          <span class="nav-icon">&#8801;</span>
+          <span class="nav-label">Agent Timeline</span>
+        </li>
+        <li class="nav-item" data-screen="alert">
+          <span class="nav-icon">&#9888;</span>
+          <span class="nav-label">Alert Detail</span>
+        </li>
+        <li class="nav-item" data-screen="drift">
+          <span class="nav-icon">&#128200;</span>
+          <span class="nav-label">Drift Chart</span>
+        </li>
+        <li class="nav-item" data-screen="chain">
+          <span class="nav-icon">&#9741;</span>
+          <span class="nav-label">Chain Graph</span>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+      <!-- OVERVIEW SCREEN -->
+      <section class="screen active" id="screen-overview">
+        <div class="screen-header">
+          <h2 class="screen-title">Overview</h2>
+        </div>
+
+        <!-- KPI TILES -->
+        <div class="kpi-row" id="kpi-row"></div>
+
+        <!-- AGENTS TABLE -->
+        <div class="panel">
+          <h3 class="panel-title">Active Agents</h3>
+          <table class="agent-table" id="agent-table">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Risk Score</th>
+                <th>Last Action</th>
+              </tr>
+            </thead>
+            <tbody id="agent-tbody"></tbody>
+          </table>
+        </div>
+
+        <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
+      </section>
+
+      <!-- TIMELINE SCREEN (placeholder) -->
+      <section class="screen" id="screen-timeline">
+        <div class="screen-header">
+          <h2 class="screen-title">Agent Timeline</h2>
+        </div>
+        <div class="panel placeholder-panel">
+          <p class="placeholder-text">Agent Timeline — coming in Step 2</p>
+        </div>
+        <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
+      </section>
+
+      <!-- ALERT SCREEN (placeholder) -->
+      <section class="screen" id="screen-alert">
+        <div class="screen-header">
+          <h2 class="screen-title">Alert Detail</h2>
+        </div>
+        <div class="panel placeholder-panel">
+          <p class="placeholder-text">Alert Detail — coming in Step 3</p>
+        </div>
+        <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
+      </section>
+
+      <!-- DRIFT SCREEN (placeholder) -->
+      <section class="screen" id="screen-drift">
+        <div class="screen-header">
+          <h2 class="screen-title">Drift Chart</h2>
+        </div>
+        <div class="panel placeholder-panel">
+          <p class="placeholder-text">Drift Chart — coming in Step 4</p>
+        </div>
+        <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
+      </section>
+
+      <!-- CHAIN SCREEN (placeholder) -->
+      <section class="screen" id="screen-chain">
+        <div class="screen-header">
+          <h2 class="screen-title">Chain Graph</h2>
+        </div>
+        <div class="panel placeholder-panel">
+          <p class="placeholder-text">Chain Graph — coming in Step 5</p>
+        </div>
+        <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
