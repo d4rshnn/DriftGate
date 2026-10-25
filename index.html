@@ -90,14 +90,80 @@
         <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
       </section>
 
-      <!-- TIMELINE SCREEN (placeholder) -->
+      <!-- TIMELINE SCREEN -->
       <section class="screen" id="screen-timeline">
         <div class="screen-header">
           <h2 class="screen-title">Agent Timeline</h2>
         </div>
-        <div class="panel placeholder-panel">
-          <p class="placeholder-text">Agent Timeline — coming in Step 2</p>
+
+        <!-- Agent selector cards -->
+        <div class="tl-agent-cards" id="tl-agent-cards"></div>
+
+        <!-- Filter bar -->
+        <div class="tl-filter-bar">
+          <span class="tl-filter-label">Filter:</span>
+          <button class="tl-filter-chip active" id="tl-filter-all" data-filter="all">All</button>
+          <button class="tl-filter-chip" id="tl-filter-flagged" data-filter="flagged">Flagged only</button>
         </div>
+
+        <!-- Feed + Risk panel -->
+        <div class="tl-body">
+          <!-- Feed -->
+          <div class="tl-feed-wrap panel" id="tl-feed-wrap">
+            <div class="tl-feed" id="tl-feed">
+              <div class="tl-empty" id="tl-empty">
+                <span class="tl-empty-dot"></span>
+                Waiting for agent activity
+              </div>
+            </div>
+          </div>
+
+          <!-- Live risk panel -->
+          <div class="tl-risk-panel panel">
+            <div class="tl-risk-title">Live Risk</div>
+
+            <!-- Circular gauge -->
+            <div class="tl-gauge-wrap">
+              <svg class="tl-gauge-svg" viewBox="0 0 160 160" id="tl-gauge-svg">
+                <circle class="tl-gauge-bg"   cx="80" cy="80" r="64" />
+                <circle class="tl-gauge-ring" cx="80" cy="80" r="64" id="tl-gauge-ring" />
+                <text class="tl-gauge-num" x="80" y="80" id="tl-gauge-num">0</text>
+                <text class="tl-gauge-sub" x="80" y="100" id="tl-gauge-sub">risk score</text>
+              </svg>
+            </div>
+
+            <!-- Status chip under gauge -->
+            <div class="tl-risk-status-wrap">
+              <span class="status-chip" id="tl-risk-status-chip">healthy</span>
+            </div>
+
+            <!-- Sparkline -->
+            <div class="tl-sparkline-label">Score history</div>
+            <div class="tl-sparkline-wrap">
+              <svg class="tl-sparkline-svg" id="tl-sparkline-svg" viewBox="0 0 240 60" preserveAspectRatio="none">
+                <polyline class="tl-sparkline-line" id="tl-sparkline-line" points="" />
+                <g id="tl-sparkline-dots"></g>
+              </svg>
+            </div>
+
+            <!-- Counters -->
+            <div class="tl-counters">
+              <div class="tl-counter">
+                <span class="tl-counter-val" id="tl-cnt-events">0</span>
+                <span class="tl-counter-lbl">Events</span>
+              </div>
+              <div class="tl-counter">
+                <span class="tl-counter-val" id="tl-cnt-flagged">0</span>
+                <span class="tl-counter-lbl">Flagged</span>
+              </div>
+              <div class="tl-counter">
+                <span class="tl-counter-val" id="tl-cnt-blocked">0</span>
+                <span class="tl-counter-lbl">Blocked</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <footer class="screen-footer">Simulated concept demo. Scenario is scripted.</footer>
       </section>
 
