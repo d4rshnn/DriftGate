@@ -20,10 +20,45 @@ let eventIdx = 0;
 let introShown = true;
 
 // ── DOM refs (shared) ──────────────────────────────────────────────────
-const clockEl = document.getElementById('clock');
 const kpiRow = document.getElementById('kpi-row');
 const agentTbody = document.getElementById('agent-tbody');
 const toastEl = document.getElementById('toast');
+const mainContentEl = document.querySelector('.main-content');
+let autoScrollResumeTimer = null;
+let autoScrollPausedUntil = 0;
+
+function autoScrollTo(target) {
+  const activeScreen = document.querySelector('.screen.active');
+  if (!target || !activeScreen || !['timeline', 'alert', 'drift', 'chain'].includes(activeScreen.id.replace('screen-', ''))) return;
+  if (Date.now() < autoScrollPausedUntil) return;
+  const caption = document.getElementById('caption-bar');
+  const captionSpace = caption && caption.classList.contains('visible') ? caption.offsetHeight + 24 : 0;
+  const host = mainContentEl.getBoundingClientRect();
+  const box = target.getBoundingClientRect();
+  let nextTop = mainContentEl.scrollTop;
+  const visibleBottom = host.bottom - captionSpace;
+  if (box.bottom > visibleBottom) nextTop += box.bottom - visibleBottom;
+  if (box.top < host.top) nextTop -= host.top - box.top;
+  if (Math.abs(nextTop - mainContentEl.scrollTop) > 1) mainContentEl.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
+}
+
+function pauseAutoScroll() {
+  autoScrollPausedUntil = Date.now() + 6000;
+  clearTimeout(autoScrollResumeTimer);
+  autoScrollResumeTimer = setTimeout(() => {
+    const active = document.querySelector('.screen.active');
+    if (active && active.id === 'screen-timeline') autoScrollTo(document.querySelector('#tl-feed .tl-row:last-child'));
+    if (active && active.id === 'screen-alert') autoScrollTo(document.querySelector('.al-response-panel'));
+    if (active && active.id === 'screen-drift') autoScrollTo(document.getElementById('dr-explainers'));
+    if (active && active.id === 'screen-chain') autoScrollTo(document.querySelector('.ch-graph-panel'));
+  }, 6000);
+}
+
+mainContentEl.addEventListener('wheel', pauseAutoScroll, { passive: true });
+mainContentEl.addEventListener('touchstart', pauseAutoScroll, { passive: true });
+window.addEventListener('keydown', event => {
+  if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', 'Space'].includes(event.code) && !event.target.matches('input, textarea, select, button')) pauseAutoScroll();
+});
 
 function cssColor(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -48,7 +83,6 @@ async function init() {
   renderKpi();
   metricsScreens.init();
   renderAgentTable();
-  updateClock();
   timeline.init();
   alertScreen.init();
   driftScreen.init();
@@ -61,6 +95,7 @@ async function init() {
 
 // ── Navigation ─────────────────────────────────────────────────────────
 function switchScreen(name) {
+  mainContentEl.scrollTop = 0;
   document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
   const screenEl = document.getElementById(`screen-${name}`);
@@ -111,8 +146,15 @@ function getSharedMetrics() {
 function renderKpi() {
   const shared = getSharedMetrics();
   const definitions = metrics.metricDefinitions || [];
+  const icons = {
+    detectionRate: '<path d="M12 2 20 5v6c0 5-3.4 8.7-8 11-4.6-2.3-8-6-8-11V5z"/><path d="m8.5 12 2.2 2.2 4.8-5"/>',
+    falseAlarmRate: '<path d="M12 3 22 20H2z"/><path d="M12 9v5m0 3h.01"/>',
+    actionsUntilCaught: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    permissionCheckDetects: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'
+  };
   kpiRow.innerHTML = definitions.map(definition => `
-    <div class="kpi-tile">
+    <div class="kpi-tile kpi-${definition.key}">
+      <span class="kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true">${icons[definition.key] || ''}</svg></span>
       <span class="kpi-label">${definition.label}</span>
       <span class="kpi-value">${shared.display[definition.key]}</span>
       <span class="kpi-eval-label">${metrics.label || ''}</span>
@@ -146,7 +188,7 @@ function chipClass(status) {
 function renderAgentTable() {
   agentTbody.innerHTML = agents.map(agent => `
     <tr>
-      <td><span class="agent-id">${agent.id}</span></td>
+      <td><span class="agent-id"><span class="agent-avatar role-${agent.id.split('-')[0]}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c.7-4 3-6 7-6s6.3 2 7 6"/></svg></span>${agent.id}</span></td>
       <td>${agent.role}</td>
       <td><span class="status-chip ${chipClass(agent.status)}">${agent.status}</span></td>
       <td>
@@ -162,18 +204,11 @@ function renderAgentTable() {
   `).join('');
 }
 
-// ── Clock and playback engine ─────────────────────────────────────────
-function updateClock() {
-  const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
-  const seconds = String(Math.floor(elapsed % 60)).padStart(2, '0');
-  clockEl.textContent = `${minutes}:${seconds}`;
-}
-
+// ── Playback engine ───────────────────────────────────────────────────
 function tick(ts) {
   if (!playing) return;
   if (lastTs !== null) elapsed = Math.min(elapsed + (ts - lastTs) / 1000 * speed, scenario.meta.durationSec);
   lastTs = ts;
-  updateClock();
   chapterBar.update();
   captionSystem.update();
   fireEvents();
@@ -422,10 +457,10 @@ const chapterBar = (() => {
   function cbInit() {
     if (!scenario || !scenario.chapters) return;
     const dur = scenario.meta.durationSec;
-    labelsEl.innerHTML = scenario.chapters.map(ch => {
-      const pct = (ch.t / dur) * 100;
-      return `<div class="chapter-label" data-chap-t="${ch.t}"
-                   style="left:${pct}%">${ch.name}</div>`;
+    labelsEl.innerHTML = scenario.chapters.map((ch, i) => {
+      const end = i + 1 < scenario.chapters.length ? scenario.chapters[i + 1].t : dur;
+      const width = Math.max(0, end - ch.t) / dur * 100;
+      return `<div class="chapter-segment" data-chap-t="${ch.t}" style="width:${width}%"><span class="chapter-label">${ch.name}</span></div>`;
     }).join('');
   }
 
@@ -440,7 +475,7 @@ const chapterBar = (() => {
     for (let i = 0; i < chaps.length; i++) {
       if (elapsed >= chaps[i].t) currentIdx = i;
     }
-    labelsEl.querySelectorAll('.chapter-label').forEach((el, i) => {
+    labelsEl.querySelectorAll('.chapter-segment').forEach((el, i) => {
       el.classList.toggle('current', i === currentIdx);
     });
   }
@@ -478,14 +513,17 @@ const captionSystem = (() => {
 
     if (activeIdx === -1 || !caps[activeIdx].text) {
       barEl.classList.remove('visible');
+      mainContentEl.style.setProperty('--caption-reserve', '0px');
       return;
     }
     barEl.textContent = caps[activeIdx].text;
     barEl.classList.add('visible');
+    requestAnimationFrame(() => mainContentEl.style.setProperty('--caption-reserve', `${barEl.offsetHeight + 24}px`));
   }
 
   function hide() {
     barEl.classList.remove('visible');
+    mainContentEl.style.setProperty('--caption-reserve', '0px');
     lastCapIdx = -1;
   }
 
@@ -706,6 +744,7 @@ const timeline = (() => {
   function buildRow(ev, evList, idx) {
     const wrapper = document.createElement('div');
     wrapper.className = 'tl-row';
+    wrapper.dataset.linked = hasLinkToPrev(evList, idx) ? 'true' : 'false';
     if (filterMode === 'flagged' && (!ev.tags || !ev.tags.length))
       wrapper.classList.add('hidden');
 
@@ -717,11 +756,6 @@ const timeline = (() => {
 
     wrapper.innerHTML = `
       <div class="tl-node ${nodeClass(ev.status)}"></div>
-      ${hasLinkToPrev(evList, idx) ? `
-        <div class="tl-link-connector">
-          <div class="tl-link-line"></div>
-          <span class="tl-link-chip">🔗 Linked: came right after untrusted input</span>
-        </div>` : ''}
       <div class="tl-card ${border}">
         <div class="tl-card-top">
           <span class="tl-card-time">${fmtTime(ev.t)}</span>
@@ -740,8 +774,18 @@ const timeline = (() => {
     feedEl.innerHTML = '';
     const evList = history[selectedAgent] || [];
     if (!evList.length) { feedEl.appendChild(emptyEl); emptyEl.style.display = 'flex'; return; }
-    evList.forEach((ev, idx) => feedEl.appendChild(buildRow(ev, evList, idx)));
+    evList.forEach((ev, idx) => {
+      if (hasLinkToPrev(evList, idx)) feedEl.appendChild(buildLinkConnector());
+      feedEl.appendChild(buildRow(ev, evList, idx));
+    });
     feedEl.scrollTo({ top: feedEl.scrollHeight, behavior: 'instant' });
+  }
+
+  function buildLinkConnector() {
+    const link = document.createElement('div');
+    link.className = 'tl-link-connector';
+    link.innerHTML = '<span class="tl-link-line"></span><span class="tl-link-chip">Linked: came right after untrusted input</span>';
+    return link;
   }
 
   function updateRiskPanel() {
@@ -836,8 +880,10 @@ const timeline = (() => {
     if (ev.agent === selectedAgent) {
       const existingEmpty = feedEl.querySelector('.tl-empty');
       if (existingEmpty) existingEmpty.remove();
+      if (hasLinkToPrev(evList, evList.length - 1)) feedEl.appendChild(buildLinkConnector());
       feedEl.appendChild(buildRow(ev, evList, evList.length - 1));
       feedEl.scrollTo({ top: feedEl.scrollHeight, behavior: 'smooth' });
+      autoScrollTo(feedEl.lastElementChild);
       if (ev.score && ev.score >= 60) {
         feedWrapEl.classList.add('alert-flash');
         setTimeout(() => feedWrapEl.classList.remove('alert-flash'), 1200);
@@ -985,6 +1031,7 @@ const alertScreen = (() => {
     if (animate) {
       reasonsList.querySelectorAll('.al-reason-row').forEach((row, i) => {
         const t = setTimeout(() => row.classList.add('revealed'), 800 + i*400);
+        if (i === al.reasons.length - 1) setTimeout(() => autoScrollTo(reasonsList), 850 + i*400);
         revealTimers.push(t);
       });
     } else {
@@ -1026,7 +1073,10 @@ const alertScreen = (() => {
       <div class="al-check-item" data-ci="${i}"><div class="al-check-icon">✓</div><span>${action}</span></div>`).join('');
     if (animate) {
       checklistEl.querySelectorAll('.al-check-item').forEach((item, i) => {
-        const t = setTimeout(() => item.classList.add('checked'), 2200 + i*500);
+        const t = setTimeout(() => {
+          item.classList.add('checked');
+          if (i === (al.actions || []).length - 1) autoScrollTo(document.querySelector('.al-response-panel'));
+        }, 2200 + i*500);
         revealTimers.push(t);
       });
     } else {
@@ -1048,6 +1098,12 @@ const alertScreen = (() => {
     renderReasons(al, animate); renderEvidence(al);
     judgeQuote.textContent = al.judgeNote || '';
     renderLadder(al); renderChecklist(al, animate);
+    if (animate) {
+      autoScrollTo(document.querySelector('.al-compare-strip'));
+      const stageTimer = setTimeout(() => autoScrollTo(document.querySelector('.al-stacked-bar-wrap')), 700);
+      const ladderTimer = setTimeout(() => autoScrollTo(ladderEl), 1800);
+      revealTimers.push(stageTimer, ladderTimer);
+    }
     if (animate) { gauge.reset(); const t = setTimeout(() => gauge.animateTo(al.score, 800), 200); revealTimers.push(t); }
     else gauge.setValue(al.score);
   }
@@ -1226,13 +1282,14 @@ const driftScreen = (() => {
     revealed++;
     overlayEl.classList.add('hidden');
     updateMainChart(d, revealed); updateNaiveChart(d, revealed); lightCallouts(revealed);
+    autoScrollTo(mainPanelEl);
     if (revealed > d.alertIndex) {
       statusChipEl.textContent = `Drift detected at day ${d.alertIndex+1}`;
       statusChipEl.classList.add('alert');
       mainPanelEl.classList.add('alert-flash');
       setTimeout(() => mainPanelEl.classList.remove('alert-flash'), 1200);
     }
-    if (revealed >= d.labels.length) { naiveStatEl.classList.add('visible'); return; }
+    if (revealed >= d.labels.length) { naiveStatEl.classList.add('visible'); autoScrollTo(explainersEl); return; }
     revealTimer = setTimeout(revealStep, 800 / speed);
   }
 
@@ -1243,6 +1300,7 @@ const driftScreen = (() => {
     started = true;
     if (!scenario) return;
     buildMainChart(scenario.drift, 1); buildNaiveChart(scenario.drift, 1);
+    autoScrollTo(mainPanelEl);
     revealed = 1; overlayEl.classList.add('hidden'); lightCallouts(1);
     revealTimer = setTimeout(revealStep, 800 / speed);
   }
@@ -1458,6 +1516,7 @@ const chainScreen = (() => {
     row.innerHTML = `<span class="ch-log-time">+${elapsed}s</span><span class="ch-log-text">${text}</span>`;
     logFeedEl.appendChild(row);
     logFeedEl.scrollTop = logFeedEl.scrollHeight;
+    autoScrollTo(document.querySelector('.ch-graph-panel'));
   }
 
   function runStep() {
