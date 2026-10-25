@@ -1872,3 +1872,432 @@ html, body {
   0%, 100% { opacity: 0.7; }
   50%       { opacity: 1;   }
 }
+
+/* =====================================================================
+   DriftGate – Step 6 polish additions
+   ===================================================================== */
+
+/* ── html/body overflow lock ── */
+html, body { overflow: hidden; }
+
+/* ── Screen cross-fade ── */
+.screen {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.screen.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Nav active glow ── */
+.nav-item.active {
+  box-shadow: inset 3px 0 0 var(--accent), inset 0 0 18px rgba(179,18,42,0.12);
+}
+
+/* ── Nav SVG icons ── */
+.nav-svg-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+.nav-item.active .nav-svg-icon,
+.nav-item:hover .nav-svg-icon {
+  color: var(--text);
+}
+
+/* ── Topbar shield icon ── */
+.topbar-shield {
+  width: 22px;
+  height: 26px;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+/* ── Chapter bar ── */
+.chapter-bar {
+  position: fixed;
+  top: var(--topbar-h);
+  left: 0;
+  right: 0;
+  height: 26px;
+  background: rgba(26,10,14,0.92);
+  border-bottom: 1px solid var(--border);
+  z-index: 99;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.chapter-progress-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--border);
+}
+
+.chapter-progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  transition: width 0.2s linear;
+}
+
+.chapter-labels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 22px;
+  pointer-events: none;
+}
+
+.chapter-label {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  top: 4px;
+  transition: color 0.3s;
+}
+
+.chapter-label.current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* layout must clear topbar + chapter bar */
+.layout {
+  padding-top: calc(var(--topbar-h) + 26px);
+}
+
+/* ── Caption bar ── */
+.caption-bar {
+  position: fixed;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10,6,8,0.88);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  padding: 10px 24px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 500;
+  max-width: 900px;
+  text-align: center;
+  z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.caption-bar.visible {
+  opacity: 1;
+}
+
+/* ── Intro overlay ── */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0a0608;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s ease;
+}
+.intro-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.intro-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(179,18,42,0.18) 0%, transparent 70%);
+  animation: introGlowPulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes introGlowPulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1;   }
+}
+
+.intro-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.intro-shield {
+  width: 80px;
+  height: 90px;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 0 20px rgba(179,18,42,0.6));
+}
+
+.intro-brand {
+  font-family: 'Oswald', sans-serif;
+  font-size: 64px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  text-shadow: 0 0 40px rgba(179,18,42,0.5);
+  line-height: 1;
+}
+
+.intro-tagline {
+  font-size: 22px;
+  color: var(--text);
+  font-weight: 300;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+.intro-byline {
+  font-size: 13px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.intro-demo-note {
+  font-size: 12px;
+  color: rgba(138,122,110,0.6);
+  margin-bottom: 8px;
+}
+
+.intro-start-btn {
+  margin-top: 16px;
+  padding: 14px 48px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 0 24px rgba(179,18,42,0.4);
+  transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+}
+.intro-start-btn:hover {
+  background: #d01530;
+  box-shadow: 0 0 36px rgba(179,18,42,0.6);
+  transform: translateY(-1px);
+}
+.intro-start-btn:active { transform: translateY(0); }
+
+.intro-skip-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-top: -4px;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+.intro-skip-btn:hover { color: var(--text); }
+
+/* ── End card overlay ── */
+.end-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10,6,8,0.88);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.end-card {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 0 60px rgba(179,18,42,0.25);
+  padding: 48px 56px;
+  max-width: 740px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.end-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.end-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.end-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateX(-12px);
+  transition: opacity 0.4s ease, transform 0.4s ease, color 0.4s ease;
+}
+.end-line.revealed {
+  opacity: 1;
+  transform: translateX(0);
+  color: var(--text);
+}
+
+.end-line-bullet {
+  color: var(--accent);
+  font-size: 10px;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.end-kpis {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.end-kpi-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 20px;
+  min-width: 110px;
+}
+
+.end-kpi-val {
+  font-family: 'Oswald', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.end-kpi-lbl {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.end-kpi-eval {
+  font-size: 10px;
+  color: rgba(138,122,110,0.5);
+}
+
+.end-btns {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* ── Shortcut help ── */
+.shortcut-help-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, color 0.2s;
+}
+.shortcut-help-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.shortcut-tooltip {
+  position: fixed;
+  bottom: 60px;
+  right: 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  z-index: 301;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  min-width: 180px;
+}
+.shortcut-tooltip.visible { display: flex; }
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text);
+  min-width: 32px;
+  text-align: center;
+}
+
+/* ── Clean mode ── */
+body.clean-mode #topbar-controls,
+body.clean-mode #sidenav,
+body.clean-mode .chapter-labels,
+body.clean-mode .screen-footer,
+body.clean-mode #shortcut-help-btn {
+  display: none !important;
+}
+
+/* ── Scrollbar polish ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }

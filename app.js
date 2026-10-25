@@ -1,5 +1,5 @@
 /* =====================================================================
-   DriftGate – app.js
+   DriftGate – app.js  (Step 6 – polished)
    ===================================================================== */
 
 'use strict';
@@ -14,6 +14,7 @@ let playing    = false;
 let rafId      = null;
 let lastTs     = null;
 let eventIdx   = 0;
+let introShown = true;   // true while overlay is visible
 
 // ── DOM refs (shared) ──────────────────────────────────────────────────
 const clockEl    = document.getElementById('clock');
@@ -35,7 +36,6 @@ async function init() {
     scenario = await sRes.json();
     metrics  = await mRes.json();
   } catch (e) {
-    console.error('DriftGate: failed to load data', e);
     return;
   }
 
@@ -49,6 +49,11 @@ async function init() {
   alertScreen.init();
   driftScreen.init();
   chainScreen.init();
+  chapterBar.init();
+  captionSystem.init();
+  introCard.init();
+  endCard.init();
+  shortcuts.init();
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────
@@ -89,7 +94,7 @@ function renderKpi() {
   `).join('');
 }
 
-// ── Agent table (Overview) ─────────────────────────────────────────────
+// ── Agent table ────────────────────────────────────────────────────────
 function scoreColor(score) {
   if (score <= 29) return '#2fa66a';
   if (score <= 59) return '#e0a030';
@@ -141,12 +146,19 @@ function tick(ts) {
   }
   lastTs = ts;
   updateClock();
+  chapterBar.update();
+  captionSystem.update();
   fireEvents();
   if (elapsed >= scenario.meta.durationSec) {
     playing = false;
     lastTs  = null;
     updateButtons();
+    setTimeout(() => endCard.show(), 1400);
     return;
+  }
+  // End card trigger at t=142
+  if (elapsed >= 142 && !endCard.hasShown()) {
+    endCard.show();
   }
   rafId = requestAnimationFrame(tick);
 }
@@ -162,9 +174,7 @@ function fireEvents() {
 function applyEvent(ev) {
   const isSilent = !!ev.silent;
 
-  if (ev.screen && !isSilent) {
-    switchScreen(ev.screen);
-  }
+  if (ev.screen && !isSilent) switchScreen(ev.screen);
 
   if (ev.agent) {
     const a = agents.find(x => x.id === ev.agent);
@@ -184,17 +194,14 @@ function applyEvent(ev) {
     if (notable) timeline.autoSelectAgent(ev.agent);
   }
 
-  // Alert hook
   if (ev.alertId && !isSilent) {
     alertScreen.show(ev.alertId, { animate: true });
   }
 
-  // Drift hook
   if (!isSilent && ev.screen === 'drift') {
     driftScreen.start();
   }
 
-  // Chain hook
   if (!isSilent && ev.screen === 'chain') {
     chainScreen.start('with');
   }
@@ -206,22 +213,22 @@ function updateButtons() {
   btnPause.disabled = !playing;
 }
 
-btnPlay.addEventListener('click', () => {
+function doPlay() {
   if (!scenario) return;
   playing = true;
   lastTs  = null;
   updateButtons();
   rafId = requestAnimationFrame(tick);
-});
+}
 
-btnPause.addEventListener('click', () => {
+function doPause() {
   playing = false;
   lastTs  = null;
   if (rafId) cancelAnimationFrame(rafId);
   updateButtons();
-});
+}
 
-btnReset.addEventListener('click', () => {
+function doReset() {
   playing  = false;
   elapsed  = 0;
   eventIdx = 0;
@@ -238,7 +245,14 @@ btnReset.addEventListener('click', () => {
   alertScreen.reset();
   driftScreen.reset();
   chainScreen.reset();
-});
+  chapterBar.update();
+  captionSystem.hide();
+  endCard.reset();
+}
+
+btnPlay.addEventListener('click', doPlay);
+btnPause.addEventListener('click', doPause);
+btnReset.addEventListener('click', doReset);
 
 btnSpeed.addEventListener('click', () => {
   speed = speed === 1 ? 2 : 1;
@@ -260,10 +274,8 @@ window.showToast = showToast;
 // SHARED GAUGE HELPER
 // ══════════════════════════════════════════════════════════════════════
 function makeGauge(ringEl, numEl) {
-  const CIRC = 2 * Math.PI * 64; // r=64 => ~402.12
-  let current = 0;
-  let target  = 0;
-  let raf     = null;
+  const CIRC = 2 * Math.PI * 64;
+  let current = 0, target = 0, raf = null;
 
   function setValue(val) {
     const pct    = Math.min(Math.max(val, 0), 100) / 100;
@@ -271,39 +283,285 @@ function makeGauge(ringEl, numEl) {
     const color  = scoreColor(val);
     ringEl.style.strokeDashoffset = offset;
     ringEl.style.stroke = color;
-    if (numEl) {
-      numEl.textContent = val;
-      numEl.setAttribute('fill', color);
-    }
+    if (numEl) { numEl.textContent = val; numEl.setAttribute('fill', color); }
   }
 
   function animateTo(tgt, duration) {
     target = tgt;
     if (raf) cancelAnimationFrame(raf);
-    const start     = current;
-    const startTime = performance.now();
-    const dur       = duration || 600;
-
+    const start = current, startTime = performance.now(), dur = duration || 600;
     function step(now) {
       const t    = Math.min((now - startTime) / dur, 1);
       const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-      const val  = Math.round(start + (target - start) * ease);
-      setValue(val);
+      setValue(Math.round(start + (target - start) * ease));
       if (t < 1) { raf = requestAnimationFrame(step); }
-      else        { current = target; raf = null; }
+      else { current = target; raf = null; }
     }
     raf = requestAnimationFrame(step);
   }
 
   function reset() {
     if (raf) cancelAnimationFrame(raf);
-    current = 0; target = 0; raf = null;
-    setValue(0);
+    current = 0; target = 0; raf = null; setValue(0);
   }
 
   setValue(0);
   return { animateTo, reset, setValue };
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// INTRO CARD
+// ══════════════════════════════════════════════════════════════════════
+const introCard = (() => {
+  const overlayEl = document.getElementById('intro-overlay');
+  const startBtn  = document.getElementById('intro-start');
+  const skipBtn   = document.getElementById('intro-skip');
+
+  function fadeOut(andPlay) {
+    overlayEl.classList.add('fade-out');
+    introShown = false;
+    setTimeout(() => {
+      overlayEl.style.display = 'none';
+      if (andPlay) doPlay();
+    }, 510);
+  }
+
+  function icInit() {
+    startBtn.addEventListener('click', () => fadeOut(true));
+    skipBtn.addEventListener('click',  () => fadeOut(false));
+  }
+
+  return { init: icInit };
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+// CHAPTER BAR
+// ══════════════════════════════════════════════════════════════════════
+const chapterBar = (() => {
+  const fillEl   = document.getElementById('chapter-progress-fill');
+  const labelsEl = document.getElementById('chapter-labels');
+
+  function cbInit() {
+    if (!scenario || !scenario.chapters) return;
+    const dur = scenario.meta.durationSec;
+    labelsEl.innerHTML = scenario.chapters.map(ch => {
+      const pct = (ch.t / dur) * 100;
+      return `<div class="chapter-label" data-chap-t="${ch.t}"
+                   style="left:${pct}%">${ch.name}</div>`;
+    }).join('');
+  }
+
+  function cbUpdate() {
+    if (!scenario) return;
+    const dur  = scenario.meta.durationSec;
+    const pct  = Math.min(elapsed / dur * 100, 100);
+    fillEl.style.width = pct + '%';
+
+    const chaps = scenario.chapters || [];
+    let currentIdx = 0;
+    for (let i = 0; i < chaps.length; i++) {
+      if (elapsed >= chaps[i].t) currentIdx = i;
+    }
+    labelsEl.querySelectorAll('.chapter-label').forEach((el, i) => {
+      el.classList.toggle('current', i === currentIdx);
+    });
+  }
+
+  return { init: cbInit, update: cbUpdate };
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+// CAPTION SYSTEM
+// ══════════════════════════════════════════════════════════════════════
+const captionSystem = (() => {
+  const barEl   = document.getElementById('caption-bar');
+  let enabled   = true;
+  let lastCapIdx = -1;
+  let hideTimer  = null;
+
+  function csInit() {
+    if (!scenario || !scenario.captions) return;
+  }
+
+  function csUpdate() {
+    if (!scenario || !scenario.captions || !enabled) return;
+    const caps = scenario.captions;
+    let activeIdx = -1;
+    for (let i = 0; i < caps.length; i++) {
+      const c = caps[i];
+      if (elapsed >= c.t && c.dur > 0 && elapsed < c.t + c.dur) {
+        activeIdx = i; break;
+      }
+    }
+    if (activeIdx === lastCapIdx) return;
+    lastCapIdx = activeIdx;
+
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+
+    if (activeIdx === -1 || !caps[activeIdx].text) {
+      barEl.classList.remove('visible');
+      return;
+    }
+    barEl.textContent = caps[activeIdx].text;
+    barEl.classList.add('visible');
+  }
+
+  function hide() {
+    barEl.classList.remove('visible');
+    lastCapIdx = -1;
+  }
+
+  function toggle() {
+    enabled = !enabled;
+    if (!enabled) hide();
+  }
+
+  return { init: csInit, update: csUpdate, hide, toggle };
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+// END CARD
+// ══════════════════════════════════════════════════════════════════════
+const endCard = (() => {
+  const overlayEl = document.getElementById('end-overlay');
+  const titleEl   = document.getElementById('end-title');
+  const linesEl   = document.getElementById('end-lines');
+  const kpisEl    = document.getElementById('end-kpis');
+  const replayBtn = document.getElementById('end-replay');
+  const closeBtn  = document.getElementById('end-close');
+  let shown = false;
+  let lineTimers = [];
+
+  function ecInit() {
+    replayBtn.addEventListener('click', () => {
+      hide();
+      doReset();
+      doPlay();
+    });
+    closeBtn.addEventListener('click', hide);
+  }
+
+  function show() {
+    if (shown) return;
+    shown = true;
+    if (!scenario || !scenario.summary) return;
+
+    const sum = scenario.summary;
+    titleEl.textContent = sum.title;
+
+    linesEl.innerHTML = sum.lines.map(l => `
+      <div class="end-line">
+        <span class="end-line-bullet">▶</span>
+        <span>${l}</span>
+      </div>
+    `).join('');
+
+    // KPIs
+    const defs = [
+      { key: 'detectionRate',          label: 'Detection Rate'           },
+      { key: 'falseAlarmRate',         label: 'False-Alarm Rate'         },
+      { key: 'actionsUntilCaught',     label: 'Actions Until Caught'     },
+      { key: 'permissionCheckDetects', label: 'Permission Detects'       },
+    ];
+    kpisEl.innerHTML = defs.map(d => `
+      <div class="end-kpi-item">
+        <span class="end-kpi-val">${metrics && (metrics[d.key] !== null && metrics[d.key] !== undefined) ? metrics[d.key] : '—'}</span>
+        <span class="end-kpi-lbl">${d.label}</span>
+        <span class="end-kpi-eval">${metrics ? (metrics.label || '') : ''}</span>
+      </div>
+    `).join('');
+
+    overlayEl.style.display = 'flex';
+
+    // Stagger line reveals
+    const lineEls = linesEl.querySelectorAll('.end-line');
+    lineEls.forEach((el, i) => {
+      const t = setTimeout(() => el.classList.add('revealed'), i * 500 + 200);
+      lineTimers.push(t);
+    });
+  }
+
+  function hide() {
+    overlayEl.style.display = 'none';
+  }
+
+  function ecReset() {
+    lineTimers.forEach(t => clearTimeout(t));
+    lineTimers = [];
+    shown = false;
+    hide();
+  }
+
+  function hasShown() { return shown; }
+
+  return { init: ecInit, show, reset: ecReset, hasShown };
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ══════════════════════════════════════════════════════════════════════
+const shortcuts = (() => {
+  const helpBtn     = document.getElementById('shortcut-help-btn');
+  const tooltipEl   = document.getElementById('shortcut-tooltip');
+  let tooltipOpen   = false;
+  let cleanMode     = false;
+
+  function skInit() {
+    helpBtn.addEventListener('click', () => {
+      tooltipOpen = !tooltipOpen;
+      tooltipEl.classList.toggle('visible', tooltipOpen);
+    });
+
+    document.addEventListener('keydown', e => {
+      // Ignore if typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      // While intro shown: only Space/Enter trigger start
+      if (introShown) {
+        if (e.code === 'Space' || e.code === 'Enter') {
+          e.preventDefault();
+          document.getElementById('intro-start').click();
+        }
+        return;
+      }
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          playing ? doPause() : doPlay();
+          break;
+        case 'KeyR':
+          doReset();
+          break;
+        case 'Digit1':
+          speed = 1;
+          btnSpeed.textContent = '1x';
+          btnSpeed.classList.remove('active');
+          break;
+        case 'Digit2':
+          speed = 2;
+          btnSpeed.textContent = '2x';
+          btnSpeed.classList.add('active');
+          break;
+        case 'KeyF':
+          if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+          else document.exitFullscreen().catch(() => {});
+          break;
+        case 'KeyC':
+          captionSystem.toggle();
+          break;
+        case 'KeyH':
+          cleanMode = !cleanMode;
+          document.body.classList.toggle('clean-mode', cleanMode);
+          if (cleanMode) helpBtn.style.display = 'none';
+          else helpBtn.style.display = '';
+          break;
+      }
+    });
+  }
+
+  return { init: skInit };
+})();
 
 // ══════════════════════════════════════════════════════════════════════
 // TIMELINE MODULE
@@ -325,8 +583,7 @@ const timeline = (() => {
   const cntEvents    = document.getElementById('tl-cnt-events');
   const cntFlagged   = document.getElementById('tl-cnt-flagged');
   const cntBlocked   = document.getElementById('tl-cnt-blocked');
-
-  let gauge = null; // initialized after DOM ready
+  let gauge = null;
 
   const TAG_CFG = {
     'UNTRUSTED INPUT': { cls: 'tl-tag-untrusted', icon: '⚠',  caption: 'Content from outside the organization entered the session' },
@@ -341,7 +598,7 @@ const timeline = (() => {
   }
 
   function cardBorderClass(ev) {
-    if (!ev.tags || ev.tags.length === 0) return '';
+    if (!ev.tags || !ev.tags.length) return '';
     if (ev.tags.includes('UNTRUSTED INPUT'))  return 'border-watching';
     if (ev.tags.includes('OUT OF ROLE'))      return 'border-restricted';
     if (ev.tags.includes('CANARY HIT'))       return 'border-quarantined';
@@ -350,8 +607,8 @@ const timeline = (() => {
   }
 
   function nodeClass(status) {
-    const map = { healthy: 'tl-node-healthy', watching: 'tl-node-watching',
-                  restricted: 'tl-node-restricted', quarantined: 'tl-node-quarantined' };
+    const map = { healthy:'tl-node-healthy', watching:'tl-node-watching',
+                  restricted:'tl-node-restricted', quarantined:'tl-node-quarantined' };
     return map[status] || 'tl-node-healthy';
   }
 
@@ -361,15 +618,15 @@ const timeline = (() => {
   }
 
   function buildTagsHtml(tags) {
-    if (!tags || tags.length === 0) return '';
+    if (!tags || !tags.length) return '';
     return tags.map(t => {
-      const cfg = TAG_CFG[t] || { cls: '', icon: '' };
+      const cfg = TAG_CFG[t] || { cls:'', icon:'' };
       return `<span class="tl-tag ${cfg.cls}">${cfg.icon} ${t}</span>`;
     }).join('');
   }
 
   function buildCaptionHtml(tags) {
-    if (!tags || tags.length === 0) return '';
+    if (!tags || !tags.length) return '';
     for (const t of tags) {
       if (TAG_CFG[t] && TAG_CFG[t].caption)
         return `<div class="tl-card-caption">${TAG_CFG[t].caption}</div>`;
@@ -385,12 +642,12 @@ const timeline = (() => {
     return '';
   }
 
-  function hasLinkToPrev(evList, currentIdx) {
-    const ev = evList[currentIdx];
+  function hasLinkToPrev(evList, idx) {
+    const ev = evList[idx];
     if (!ev.tags) return false;
-    const needsLink = ev.tags.includes('OUT OF ROLE') || ev.tags.includes('NEW DESTINATION');
-    if (!needsLink) return false;
-    for (let i = currentIdx - 1; i >= 0; i--) {
+    const needs = ev.tags.includes('OUT OF ROLE') || ev.tags.includes('NEW DESTINATION');
+    if (!needs) return false;
+    for (let i = idx - 1; i >= 0; i--) {
       if (evList[i].tags && evList[i].tags.includes('UNTRUSTED INPUT')) return true;
       if (evList[i].tags && evList[i].tags.length > 0) break;
     }
@@ -400,7 +657,7 @@ const timeline = (() => {
   function buildRow(ev, evList, idx) {
     const wrapper = document.createElement('div');
     wrapper.className = 'tl-row';
-    if (filterMode === 'flagged' && (!ev.tags || ev.tags.length === 0))
+    if (filterMode === 'flagged' && (!ev.tags || !ev.tags.length))
       wrapper.classList.add('hidden');
 
     const tagsHtml    = buildTagsHtml(ev.tags);
@@ -433,17 +690,9 @@ const timeline = (() => {
   function renderFeed() {
     feedEl.innerHTML = '';
     const evList = history[selectedAgent] || [];
-    if (evList.length === 0) {
-      feedEl.appendChild(emptyEl);
-      emptyEl.style.display = 'flex';
-      return;
-    }
+    if (!evList.length) { feedEl.appendChild(emptyEl); emptyEl.style.display = 'flex'; return; }
     evList.forEach((ev, idx) => feedEl.appendChild(buildRow(ev, evList, idx)));
-    scrollFeedToBottom(false);
-  }
-
-  function scrollFeedToBottom(smooth) {
-    feedEl.scrollTo({ top: feedEl.scrollHeight, behavior: smooth ? 'smooth' : 'instant' });
+    feedEl.scrollTo({ top: feedEl.scrollHeight, behavior: 'instant' });
   }
 
   function updateRiskPanel() {
@@ -452,37 +701,30 @@ const timeline = (() => {
     const score  = agent ? agent.score : 0;
     const status = agent ? agent.status : 'healthy';
 
-    const flaggedCount = evList.filter(e => e.tags && e.tags.length > 0).length;
-    const blockedCount = evList.filter(e => e.status === 'restricted' || e.status === 'quarantined').length;
     cntEvents.textContent  = evList.length;
-    cntFlagged.textContent = flaggedCount;
-    cntBlocked.textContent = blockedCount;
+    cntFlagged.textContent = evList.filter(e => e.tags && e.tags.length).length;
+    cntBlocked.textContent = evList.filter(e => e.status === 'restricted' || e.status === 'quarantined').length;
 
     statusChip.textContent = status;
     statusChip.className   = `status-chip ${chipClass(status)}`;
 
     if (gauge) gauge.animateTo(score, 600);
-
     renderSparkline(evList);
   }
 
   function renderSparkline(evList) {
-    if (evList.length === 0) {
-      sparkLine.setAttribute('points', '');
-      sparkDots.innerHTML = '';
-      return;
-    }
-    const W = 240, H = 60, PAD = 6;
+    if (!evList.length) { sparkLine.setAttribute('points',''); sparkDots.innerHTML=''; return; }
+    const W=240, H=60, PAD=6;
     const scores = evList.map(e => e.score !== undefined ? e.score : 0);
-    const maxS   = Math.max(100, ...scores);
-    const pts    = scores.map((s, i) => {
-      const x = PAD + (scores.length === 1 ? W / 2 - PAD : (i / (scores.length - 1)) * (W - PAD * 2));
-      const y = H - PAD - (s / maxS) * (H - PAD * 2);
+    const maxS = Math.max(100, ...scores);
+    const pts = scores.map((s, i) => {
+      const x = PAD + (scores.length === 1 ? W/2-PAD : (i/(scores.length-1))*(W-PAD*2));
+      const y = H - PAD - (s/maxS)*(H-PAD*2);
       return `${x},${y}`;
     });
     sparkLine.setAttribute('points', pts.join(' '));
     sparkDots.innerHTML = pts.map(p => {
-      const [x, y] = p.split(',');
+      const [x,y] = p.split(',');
       return `<circle class="tl-sparkline-dot" cx="${x}" cy="${y}" r="2.5"/>`;
     }).join('');
   }
@@ -492,7 +734,7 @@ const timeline = (() => {
       const isSelected = a.id === selectedAgent;
       const color      = scoreColor(a.score);
       return `
-        <div class="tl-agent-card ${isSelected ? 'selected' : ''}" data-agentid="${a.id}">
+        <div class="tl-agent-card ${isSelected?'selected':''}" data-agentid="${a.id}">
           <div class="tl-card-id">${a.id}</div>
           <div class="tl-card-role">${a.role}</div>
           <div class="tl-card-meta">
@@ -506,9 +748,7 @@ const timeline = (() => {
     agentCardsEl.querySelectorAll('.tl-agent-card').forEach(card => {
       card.addEventListener('click', () => {
         selectedAgent = card.dataset.agentid;
-        renderAgentCards();
-        renderFeed();
-        updateRiskPanel();
+        renderAgentCards(); renderFeed(); updateRiskPanel();
       });
     });
   }
@@ -516,33 +756,23 @@ const timeline = (() => {
   function applyFilter() {
     feedEl.querySelectorAll('.tl-row').forEach(row => {
       const hasTag = row.querySelector('.tl-tag') !== null;
-      if (filterMode === 'flagged' && !hasTag) row.classList.add('hidden');
-      else row.classList.remove('hidden');
+      row.classList.toggle('hidden', filterMode === 'flagged' && !hasTag);
     });
   }
 
   function tlInit() {
     if (scenario) scenario.agents.forEach(a => { history[a.id] = []; });
-
-    gauge = makeGauge(
-      document.getElementById('tl-gauge-ring'),
-      document.getElementById('tl-gauge-num')
-    );
-
-    renderAgentCards();
-    renderFeed();
-    updateRiskPanel();
+    gauge = makeGauge(document.getElementById('tl-gauge-ring'), document.getElementById('tl-gauge-num'));
+    renderAgentCards(); renderFeed(); updateRiskPanel();
 
     filterAllBtn.addEventListener('click', () => {
       filterMode = 'all';
-      filterAllBtn.classList.add('active');
-      filterFlagBtn.classList.remove('active');
+      filterAllBtn.classList.add('active'); filterFlagBtn.classList.remove('active');
       applyFilter();
     });
     filterFlagBtn.addEventListener('click', () => {
       filterMode = 'flagged';
-      filterFlagBtn.classList.add('active');
-      filterAllBtn.classList.remove('active');
+      filterFlagBtn.classList.add('active'); filterAllBtn.classList.remove('active');
       applyFilter();
     });
   }
@@ -552,16 +782,13 @@ const timeline = (() => {
     if (!history[ev.agent]) history[ev.agent] = [];
     const evList = history[ev.agent];
     evList.push(ev);
-
     renderAgentCards();
 
     if (ev.agent === selectedAgent) {
       const existingEmpty = feedEl.querySelector('.tl-empty');
       if (existingEmpty) existingEmpty.remove();
-      const idx = evList.length - 1;
-      const row = buildRow(ev, evList, idx);
-      feedEl.appendChild(row);
-      scrollFeedToBottom(true);
+      feedEl.appendChild(buildRow(ev, evList, evList.length - 1));
+      feedEl.scrollTo({ top: feedEl.scrollHeight, behavior: 'smooth' });
       if (ev.score && ev.score >= 60) {
         feedWrapEl.classList.add('alert-flash');
         setTimeout(() => feedWrapEl.classList.remove('alert-flash'), 1200);
@@ -575,18 +802,16 @@ const timeline = (() => {
   function tlAutoSelectAgent(agentId) {
     if (selectedAgent === agentId) return;
     selectedAgent = agentId;
-    renderAgentCards();
-    renderFeed();
-    updateRiskPanel();
+    renderAgentCards(); renderFeed(); updateRiskPanel();
   }
 
   function tlReset() {
     Object.keys(history).forEach(k => { history[k] = []; });
     selectedAgent = 'procurement-01';
     if (gauge) gauge.reset();
-    renderAgentCards();
-    renderFeed();
-    updateRiskPanel();
+    filterMode = 'all';
+    filterAllBtn.classList.add('active'); filterFlagBtn.classList.remove('active');
+    renderAgentCards(); renderFeed(); updateRiskPanel();
   }
 
   return { init: tlInit, addEvent: tlAddEvent, autoSelectAgent: tlAutoSelectAgent, reset: tlReset };
@@ -596,12 +821,11 @@ const timeline = (() => {
 // ALERT SCREEN MODULE
 // ══════════════════════════════════════════════════════════════════════
 const alertScreen = (() => {
-  let firedAlerts   = [];   // ids of alerts that have been shown
+  let firedAlerts   = [];
   let activeAlertId = null;
   let gauge         = null;
   let revealTimers  = [];
 
-  // DOM
   const emptyEl     = document.getElementById('al-empty');
   const bodyEl      = document.getElementById('al-body');
   const tabsEl      = document.getElementById('al-tabs');
@@ -622,55 +846,34 @@ const alertScreen = (() => {
   const btnApprove  = document.getElementById('al-btn-approve');
   const btnReject   = document.getElementById('al-btn-reject');
 
-  // Palette for reason segments / bars
-  const SEG_COLORS = ['#b3122a', '#e8742a', '#e0a030', '#2fa66a', '#6a3fa0'];
-
-  // Signal chip color by index
-  const SIG_FIRED_CLS = [
-    'fired-red', 'fired-orange', 'fired-amber', 'fired-green', 'fired-red',
-  ];
+  const SEG_COLORS  = ['#b3122a','#e8742a','#e0a030','#2fa66a','#6a3fa0'];
+  const SIG_FIRED   = ['fired-red','fired-orange','fired-amber','fired-green','fired-red'];
 
   function fmtTime(sec) {
-    return String(Math.floor(sec / 60)).padStart(2, '0') + ':' +
-           String(Math.floor(sec % 60)).padStart(2, '0');
+    return String(Math.floor(sec/60)).padStart(2,'0') + ':' + String(Math.floor(sec%60)).padStart(2,'0');
   }
 
-  function getAlert(id) {
-    return scenario && scenario.alerts ? scenario.alerts.find(a => a.id === id) : null;
-  }
-
-  function clearTimers() {
-    revealTimers.forEach(t => clearTimeout(t));
-    revealTimers = [];
-  }
+  function getAlert(id) { return scenario && scenario.alerts ? scenario.alerts.find(a => a.id === id) : null; }
+  function clearTimers() { revealTimers.forEach(t => clearTimeout(t)); revealTimers = []; }
 
   function alInit() {
-    gauge = makeGauge(
-      document.getElementById('al-gauge-ring'),
-      document.getElementById('al-gauge-num')
-    );
-
+    gauge = makeGauge(document.getElementById('al-gauge-ring'), document.getElementById('al-gauge-num'));
     btnApprove.addEventListener('click', () => showToast('Demo only'));
     btnReject .addEventListener('click', () => showToast('Demo only'));
   }
 
   function renderTabs() {
     if (!scenario || !scenario.alerts) return;
-    tabsEl.innerHTML = scenario.alerts.map(al => {
-      const label = al.severity === 'Critical'
-        ? `Alert ${al.id === 'a1' ? '1' : '2'} · Quarantined`
-        : `Alert ${al.id === 'a1' ? '1' : '2'} · Restricted`;
+    tabsEl.innerHTML = scenario.alerts.map((al, i) => {
+      const label    = `Alert ${i+1} · ${al.severity === 'Critical' ? 'Quarantined' : 'Restricted'}`;
       const isFired  = firedAlerts.includes(al.id);
       const isActive = al.id === activeAlertId;
-      return `<button class="al-tab ${isActive ? 'active' : ''} ${!isFired ? 'dim' : ''}"
-                data-alertid="${al.id}">${label}</button>`;
+      return `<button class="al-tab ${isActive?'active':''} ${!isFired?'dim':''}" data-alertid="${al.id}">${label}</button>`;
     }).join('');
-
     tabsEl.querySelectorAll('.al-tab').forEach(btn => {
       btn.addEventListener('click', () => {
-        const id = btn.dataset.alertid;
-        if (!firedAlerts.includes(id)) return;
-        show(id, { animate: true });
+        if (!firedAlerts.includes(btn.dataset.alertid)) return;
+        show(btn.dataset.alertid, { animate: true });
       });
     });
   }
@@ -679,81 +882,40 @@ const alertScreen = (() => {
     const agentData = scenario.agents.find(a => a.id === al.agent);
     const role = agentData ? agentData.role : al.agent;
     const sevCls = al.severity === 'Critical' ? 'al-sev-critical' : 'al-sev-high';
-    metaEl.innerHTML = `
-      Agent: <strong>${al.agent}</strong> · Role: ${role} · Raised at ${fmtTime(al.raisedAt)}
-      <span class="al-severity-badge ${sevCls}">${al.severity.toUpperCase()}</span>
-    `;
+    metaEl.innerHTML = `Agent: <strong>${al.agent}</strong> · Role: ${role} · Raised at ${fmtTime(al.raisedAt)} <span class="al-severity-badge ${sevCls}">${al.severity.toUpperCase()}</span>`;
   }
 
   function renderCompare(al) {
     const isQ = al.score >= 90;
-    if (isQ) {
-      compareVerd.textContent = 'QUARANTINED';
-      compareVerd.className   = 'al-compare-verdict al-verdict-quarantine';
-      compareIcon.textContent = '☣';
-      compareCap.textContent  = 'Behavior no longer matches the declared role';
-      compareDg.classList.remove('glow-restrict');
-      compareDg.classList.add('glow-quarantine');
-    } else {
-      compareVerd.textContent = 'RESTRICTED';
-      compareVerd.className   = 'al-compare-verdict al-verdict-restrict';
-      compareIcon.textContent = '🛡';
-      compareCap.textContent  = 'Behavior no longer matches the declared role';
-      compareDg.classList.remove('glow-quarantine');
-      compareDg.classList.add('glow-restrict');
-    }
+    compareVerd.textContent = isQ ? 'QUARANTINED' : 'RESTRICTED';
+    compareVerd.className   = `al-compare-verdict ${isQ ? 'al-verdict-quarantine' : 'al-verdict-restrict'}`;
+    compareIcon.textContent = isQ ? '☣' : '🛡';
+    compareDg.classList.toggle('glow-quarantine', isQ);
+    compareDg.classList.toggle('glow-restrict',   !isQ);
   }
 
   function renderSignals(al, animate) {
     signalsCol.innerHTML = (al.signals || []).map((sig, i) => {
-      const firedCls = sig.fired ? (SIG_FIRED_CLS[i] || 'fired-red') : 'dim';
-      const ptsText  = sig.fired ? `+${sig.points}` : 'clear';
-      return `
-        <div class="al-signal-chip ${firedCls}"
-             style="${animate ? `opacity:0;transition-delay:${i * 120}ms` : ''}">
-          <span>${sig.name}</span>
-          <span class="al-signal-pts">${ptsText}</span>
-        </div>
-      `;
+      const firedCls = sig.fired ? (SIG_FIRED[i] || 'fired-red') : 'dim';
+      return `<div class="al-signal-chip ${firedCls}" style="${animate?`opacity:0;transition-delay:${i*120}ms`:''}">
+        <span>${sig.name}</span><span class="al-signal-pts">${sig.fired?`+${sig.points}`:'clear'}</span>
+      </div>`;
     }).join('');
-
     if (animate) {
-      const chips = signalsCol.querySelectorAll('.al-signal-chip');
-      chips.forEach((chip, i) => {
-        const t = setTimeout(() => { chip.style.opacity = ''; }, 100 + i * 130);
+      signalsCol.querySelectorAll('.al-signal-chip').forEach((chip, i) => {
+        const t = setTimeout(() => { chip.style.opacity = ''; }, 100 + i*130);
         revealTimers.push(t);
       });
     }
   }
 
   function renderStackedBar(al, animate) {
-    const total   = al.score;
-    const maxPts  = Math.max(...al.reasons.map(r => r.points));
-    const segments = al.reasons.map((r, i) => ({
-      pct:   (r.points / 100) * 100,
-      color: SEG_COLORS[i % SEG_COLORS.length],
-      label: r.text,
-      pts:   r.points,
-    }));
-
-    stackedBar.style.width = (animate ? '0%' : total + '%');
-    stackedBar.innerHTML   = segments.map(s =>
-      `<div class="al-stacked-seg"
-            style="flex:${s.pts};background:${s.color}"></div>`
-    ).join('');
-
-    stackedLeg.innerHTML = segments.map((s, i) => `
-      <div class="al-legend-item">
-        <div class="al-legend-swatch" style="background:${s.color}"></div>
-        <span>${al.reasons[i].text.substring(0, 32)}… (+${s.pts})</span>
-      </div>
-    `).join('');
-
+    stackedBar.style.width = animate ? '0%' : al.score + '%';
+    stackedBar.innerHTML   = al.reasons.map((r, i) => `<div class="al-stacked-seg" style="flex:${r.points};background:${SEG_COLORS[i%SEG_COLORS.length]}"></div>`).join('');
+    stackedLeg.innerHTML   = al.reasons.map((r, i) => `
+      <div class="al-legend-item"><div class="al-legend-swatch" style="background:${SEG_COLORS[i%SEG_COLORS.length]}"></div><span>${r.text.substring(0,32)}… (+${r.points})</span></div>`).join('');
     if (animate) {
-      const t = setTimeout(() => {
-        stackedBar.style.transition = 'width 0.8s ease';
-        stackedBar.style.width      = total + '%';
-      }, 300);
+      const t = setTimeout(() => { stackedBar.style.transition = 'width 0.8s ease'; stackedBar.style.width = al.score + '%'; }, 300);
       revealTimers.push(t);
     }
   }
@@ -761,27 +923,18 @@ const alertScreen = (() => {
   function renderReasons(al, animate) {
     const maxPts = Math.max(...al.reasons.map(r => r.points));
     reasonsList.innerHTML = al.reasons.map((r, i) => {
-      const color = SEG_COLORS[i % SEG_COLORS.length];
-      const barW  = (r.points / maxPts) * 100;
-      return `
-        <div class="al-reason-row" data-idx="${i}">
-          <span class="al-reason-icon" style="color:${color}">◆</span>
-          <span class="al-reason-text">${r.text}</span>
-          <span class="al-reason-pts" style="color:${color}">+${r.points}</span>
-          <div class="al-reason-bar-wrap">
-            <div class="al-reason-bar-fill"
-                 style="width:${barW}%;background:${color}"></div>
-          </div>
-        </div>
-      `;
+      const color = SEG_COLORS[i%SEG_COLORS.length];
+      return `<div class="al-reason-row" data-idx="${i}">
+        <span class="al-reason-icon" style="color:${color}">◆</span>
+        <span class="al-reason-text">${r.text}</span>
+        <span class="al-reason-pts" style="color:${color}">+${r.points}</span>
+        <div class="al-reason-bar-wrap"><div class="al-reason-bar-fill" style="width:${(r.points/maxPts)*100}%;background:${color}"></div></div>
+      </div>`;
     }).join('');
-
     scoreTotal.textContent = `Total risk score: ${al.score} / 100`;
-
     if (animate) {
-      const rows = reasonsList.querySelectorAll('.al-reason-row');
-      rows.forEach((row, i) => {
-        const t = setTimeout(() => row.classList.add('revealed'), 800 + i * 400);
+      reasonsList.querySelectorAll('.al-reason-row').forEach((row, i) => {
+        const t = setTimeout(() => row.classList.add('revealed'), 800 + i*400);
         revealTimers.push(t);
       });
     } else {
@@ -792,68 +945,38 @@ const alertScreen = (() => {
   function renderEvidence(al) {
     let html = '';
     if (al.priorEvent) {
-      html += `
-        <div class="al-ev-item">
-          <span class="al-ev-time">${fmtTime(al.raisedAt - 25)}</span>
-          <span class="al-ev-text">${al.priorEvent}</span>
-        </div>
-        <div class="al-ev-connector">
-          <div class="al-ev-conn-line"></div>
-          <span class="al-ev-conn-label">🔗 Linked</span>
-        </div>
-      `;
+      html += `<div class="al-ev-item"><span class="al-ev-time">${fmtTime(al.raisedAt-25)}</span><span class="al-ev-text">${al.priorEvent}</span></div>
+               <div class="al-ev-connector"><div class="al-ev-conn-line"></div><span class="al-ev-conn-label">🔗 Linked</span></div>`;
     }
-    html += `
-      <div class="al-ev-item" style="border-color:var(--restricted)">
-        <span class="al-ev-time">${fmtTime(al.raisedAt)}</span>
-        <span class="al-ev-text">${al.triggerEvent}</span>
-      </div>
-    `;
+    html += `<div class="al-ev-item" style="border-color:var(--restricted)"><span class="al-ev-time">${fmtTime(al.raisedAt)}</span><span class="al-ev-text">${al.triggerEvent}</span></div>`;
     evidTrail.innerHTML = html;
-  }
-
-  function renderJudge(al) {
-    judgeQuote.textContent = al.judgeNote || '';
   }
 
   function renderLadder(al) {
     const steps = [
-      { name: 'Allow',      icon: '✓', range: '0 – 29',  max: 29  },
-      { name: 'Ask human',  icon: '?', range: '30 – 59', max: 59  },
-      { name: 'Restrict',   icon: '⊘', range: '60 – 89', max: 89  },
-      { name: 'Quarantine', icon: '☣', range: '90 – 100',max: 100 },
+      { name:'Allow',     icon:'✓', range:'0 – 29',   max:29  },
+      { name:'Ask human', icon:'?', range:'30 – 59',  max:59  },
+      { name:'Restrict',  icon:'⊘', range:'60 – 89',  max:89  },
+      { name:'Quarantine',icon:'☣', range:'90 – 100', max:100 },
     ];
     const activeIdx = al.score >= 90 ? 3 : al.score >= 60 ? 2 : al.score >= 30 ? 1 : 0;
-
     ladderEl.innerHTML = steps.map((s, i) => {
-      let cls = '';
-      if (i < activeIdx)  cls = 'filled';
-      if (i === activeIdx) cls = 'active';
-      if (i > activeIdx)  cls = 'dim';
-      return `
-        <div class="al-ladder-step ${cls}">
-          <div class="al-ladder-icon">${s.icon}</div>
-          <div class="al-ladder-name">${s.name}</div>
-          <div class="al-ladder-range">${s.range}</div>
-          ${i === activeIdx ? '<div class="al-ladder-active-dot"></div>' : ''}
-        </div>
-      `;
+      const cls = i < activeIdx ? 'filled' : i === activeIdx ? 'active' : 'dim';
+      return `<div class="al-ladder-step ${cls}">
+        <div class="al-ladder-icon">${s.icon}</div>
+        <div class="al-ladder-name">${s.name}</div>
+        <div class="al-ladder-range">${s.range}</div>
+        ${i === activeIdx ? '<div class="al-ladder-active-dot"></div>' : ''}
+      </div>`;
     }).join('');
   }
 
   function renderChecklist(al, animate) {
     checklistEl.innerHTML = (al.actions || []).map((action, i) => `
-      <div class="al-check-item" data-ci="${i}">
-        <div class="al-check-icon">✓</div>
-        <span>${action}</span>
-      </div>
-    `).join('');
-
+      <div class="al-check-item" data-ci="${i}"><div class="al-check-icon">✓</div><span>${action}</span></div>`).join('');
     if (animate) {
-      const items = checklistEl.querySelectorAll('.al-check-item');
-      items.forEach((item, i) => {
-        const delay = 2200 + i * 500;
-        const t = setTimeout(() => item.classList.add('checked'), delay);
+      checklistEl.querySelectorAll('.al-check-item').forEach((item, i) => {
+        const t = setTimeout(() => item.classList.add('checked'), 2200 + i*500);
         revealTimers.push(t);
       });
     } else {
@@ -864,50 +987,25 @@ const alertScreen = (() => {
   function show(id, opts) {
     const al = getAlert(id);
     if (!al) return;
-
     const animate = opts && opts.animate;
-
     clearTimers();
-
     if (!firedAlerts.includes(id)) firedAlerts.push(id);
     activeAlertId = id;
-
-    // show body
-    emptyEl.style.display  = 'none';
-    bodyEl.style.display   = 'flex';
-
-    renderTabs();
-    renderMeta(al);
-    renderCompare(al);
-    renderSignals(al, animate);
-    renderStackedBar(al, animate);
-    renderReasons(al, animate);
-    renderEvidence(al);
-    renderJudge(al);
-    renderLadder(al);
-    renderChecklist(al, animate);
-
-    // Animate gauge from 0
-    if (animate) {
-      gauge.reset();
-      const t = setTimeout(() => gauge.animateTo(al.score, 800), 200);
-      revealTimers.push(t);
-    } else {
-      gauge.setValue(al.score);
-    }
+    emptyEl.style.display = 'none';
+    bodyEl.style.display  = 'flex';
+    renderTabs(); renderMeta(al); renderCompare(al);
+    renderSignals(al, animate); renderStackedBar(al, animate);
+    renderReasons(al, animate); renderEvidence(al);
+    judgeQuote.textContent = al.judgeNote || '';
+    renderLadder(al); renderChecklist(al, animate);
+    if (animate) { gauge.reset(); const t = setTimeout(() => gauge.animateTo(al.score, 800), 200); revealTimers.push(t); }
+    else gauge.setValue(al.score);
   }
 
-  function onNavigate() {
-    if (activeAlertId) {
-      // already rendered — just re-render tabs with current state, no animation
-      renderTabs();
-    }
-  }
+  function onNavigate() { if (activeAlertId) renderTabs(); }
 
   function reset() {
-    clearTimers();
-    firedAlerts   = [];
-    activeAlertId = null;
+    clearTimers(); firedAlerts = []; activeAlertId = null;
     if (gauge) gauge.reset();
     emptyEl.style.display = 'flex';
     bodyEl.style.display  = 'none';
@@ -921,433 +1019,197 @@ const alertScreen = (() => {
 // DRIFT SCREEN MODULE
 // ══════════════════════════════════════════════════════════════════════
 const driftScreen = (() => {
-  let mainChart   = null;
-  let naiveChart  = null;
-  let revealed    = 0;       // how many days have been drawn (0 = none)
-  let started     = false;   // whether start() has been called
-  let revealTimer = null;
+  let mainChart = null, naiveChart = null, revealed = 0, started = false, revealTimer = null;
 
-  // DOM
-  const mainPanelEl  = document.getElementById('dr-main-panel');
-  const chartWrapEl  = document.getElementById('dr-chart-wrap');
-  const overlayEl    = document.getElementById('dr-overlay-msg');
-  const statusChipEl = document.getElementById('dr-status-chip');
-  const naiveStatEl  = document.getElementById('dr-naive-status');
-  const calloutsEl   = document.getElementById('dr-callouts-list');
-  const explainersEl = document.getElementById('dr-explainers');
+  const mainPanelEl = document.getElementById('dr-main-panel');
+  const overlayEl   = document.getElementById('dr-overlay-msg');
+  const statusChipEl= document.getElementById('dr-status-chip');
+  const naiveStatEl = document.getElementById('dr-naive-status');
+  const calloutsEl  = document.getElementById('dr-callouts-list');
+  const explainersEl= document.getElementById('dr-explainers');
 
-  // ── Chart.js shared dark defaults ──────────────────────────────────
-  const GRID_COLOR  = '#3a1018';
-  const TICK_COLOR  = 'rgba(239,230,218,0.70)';
-  const FONT_FAMILY = "'Inter', sans-serif";
+  const GRID = '#3a1018', TICK = 'rgba(239,230,218,0.70)', FF = "'Inter',sans-serif";
 
-  function darkScaleDefaults(extra) {
-    return Object.assign({
-      grid:  { color: GRID_COLOR },
-      ticks: { color: TICK_COLOR, font: { family: FONT_FAMILY, size: 11 } },
-    }, extra || {});
+  function dsc(extra) {
+    return Object.assign({ grid: { color: GRID }, ticks: { color: TICK, font: { family: FF, size: 11 } } }, extra || {});
   }
 
-  // ── Alert-region plugin (inline) ─────────────────────────────────────
-  const alertRegionPlugin = {
+  const alertPlugin = {
     id: 'alertRegion',
-    afterDraw(chart, args, opts) {
+    afterDraw(chart, _a, opts) {
       if (!opts || opts.alertIndex === undefined || opts.revealedDays === undefined) return;
       if (opts.revealedDays <= opts.alertIndex) return;
-
       const { ctx, chartArea, scales } = chart;
       const xScale = scales['x'];
       if (!xScale) return;
-
-      const x0 = xScale.getPixelForValue(opts.alertIndex);
-      const x1 = chartArea.right;
-
-      // Shaded region
+      const x0 = xScale.getPixelForValue(opts.alertIndex), x1 = chartArea.right;
       ctx.save();
       ctx.fillStyle = 'rgba(229,56,79,0.12)';
       ctx.fillRect(x0, chartArea.top, x1 - x0, chartArea.bottom - chartArea.top);
-
-      // Vertical line
-      ctx.strokeStyle = 'rgba(229,56,79,0.75)';
-      ctx.lineWidth   = 1.5;
-      ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      ctx.moveTo(x0, chartArea.top);
-      ctx.lineTo(x0, chartArea.bottom);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Label
-      ctx.fillStyle = 'rgba(229,56,79,0.9)';
-      ctx.font      = `600 11px ${FONT_FAMILY}`;
-      ctx.fillText('Alert raised', x0 + 5, chartArea.top + 14);
+      ctx.strokeStyle = 'rgba(229,56,79,0.75)'; ctx.lineWidth = 1.5; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(x0, chartArea.top); ctx.lineTo(x0, chartArea.bottom); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle = 'rgba(229,56,79,0.9)'; ctx.font = `600 11px ${FF}`;
+      ctx.fillText('Alert raised', x0+5, chartArea.top+14);
       ctx.restore();
     },
   };
 
-  // ── Build main chart ─────────────────────────────────────────────────
   function buildMainChart(d, days) {
     const labels  = d.labels.slice(0, days);
     const frozen  = d.frozen.slice(0, days);
     const rolling = d.rolling.slice(0, days);
-    const drift   = rolling.map((v, i) => parseFloat((v - (d.frozen[i] || 0)).toFixed(4)));
+    const drift   = rolling.map((v,i) => parseFloat((v-(d.frozen[i]||0)).toFixed(4)));
     const cusum   = d.cusum.slice(0, days);
     const thresh  = Array(days).fill(d.threshold);
-
-    const canvas = document.getElementById('dr-main-canvas');
+    const canvas  = document.getElementById('dr-main-canvas');
     if (mainChart) mainChart.destroy();
-
     mainChart = new Chart(canvas, {
-      type: 'line',
-      plugins: [alertRegionPlugin],
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Frozen baseline',
-            data: frozen,
-            borderColor: '#8a9bb0',
-            borderDash: [6, 3],
-            borderWidth: 1.5,
-            pointRadius: 0,
-            tension: 0,
-            yAxisID: 'yLeft',
-            fill: false,
-          },
-          {
-            label: 'Rolling baseline',
-            data: rolling,
-            borderColor: '#e0a030',
-            borderWidth: 2,
-            pointRadius: 3,
-            pointBackgroundColor: '#e0a030',
-            tension: 0.3,
-            yAxisID: 'yLeft',
-            fill: false,
-          },
-          {
-            label: 'Drift from frozen',
-            data: drift,
-            borderColor: '#e5384f',
-            borderWidth: 1.5,
-            pointRadius: 0,
-            tension: 0.3,
-            yAxisID: 'yLeft',
-            fill: true,
-            backgroundColor: 'rgba(229,56,79,0.15)',
-          },
-          {
-            label: 'CUSUM',
-            data: cusum,
-            borderColor: '#e8742a',
-            borderWidth: 3,
-            pointRadius: 4,
-            pointBackgroundColor: '#e8742a',
-            tension: 0.2,
-            yAxisID: 'yRight',
-            fill: false,
-          },
-          {
-            label: 'Alert threshold',
-            data: thresh,
-            borderColor: 'rgba(239,230,218,0.60)',
-            borderDash: [5, 4],
-            borderWidth: 1.5,
-            pointRadius: 0,
-            tension: 0,
-            yAxisID: 'yRight',
-            fill: false,
-          },
-        ],
-      },
+      type: 'line', plugins: [alertPlugin],
+      data: { labels, datasets: [
+        { label:'Frozen baseline',  data:frozen,  borderColor:'#8a9bb0', borderDash:[6,3], borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yLeft',  fill:false },
+        { label:'Rolling baseline', data:rolling, borderColor:'#e0a030', borderWidth:2, pointRadius:3, pointBackgroundColor:'#e0a030', tension:0.3, yAxisID:'yLeft', fill:false },
+        { label:'Drift from frozen',data:drift,   borderColor:'#e5384f', borderWidth:1.5, pointRadius:0, tension:0.3, yAxisID:'yLeft', fill:true, backgroundColor:'rgba(229,56,79,0.15)' },
+        { label:'CUSUM',            data:cusum,   borderColor:'#e8742a', borderWidth:3, pointRadius:4, pointBackgroundColor:'#e8742a', tension:0.2, yAxisID:'yRight', fill:false },
+        { label:'Alert threshold',  data:thresh,  borderColor:'rgba(239,230,218,0.60)', borderDash:[5,4], borderWidth:1.5, pointRadius:0, tension:0, yAxisID:'yRight', fill:false },
+      ]},
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 400 },
+        responsive:true, maintainAspectRatio:false, animation:{ duration:400 },
         plugins: {
-          alertRegion: { alertIndex: d.alertIndex, revealedDays: days },
-          legend: {
-            position: 'bottom',
-            labels: {
-              color: TICK_COLOR,
-              font: { family: FONT_FAMILY, size: 11 },
-              usePointStyle: true,
-              pointStyleWidth: 20,
-              padding: 16,
-            },
-          },
-          tooltip: {
-            backgroundColor: '#1a0a0e',
-            borderColor: '#b3122a',
-            borderWidth: 1,
-            titleColor: '#efe6da',
-            bodyColor: 'rgba(239,230,218,0.75)',
-            padding: 10,
-          },
+          alertRegion: { alertIndex:d.alertIndex, revealedDays:days },
+          legend: { position:'bottom', labels:{ color:TICK, font:{family:FF,size:11}, usePointStyle:true, pointStyleWidth:20, padding:16 } },
+          tooltip: { backgroundColor:'#1a0a0e', borderColor:'#b3122a', borderWidth:1, titleColor:'#efe6da', bodyColor:'rgba(239,230,218,0.75)', padding:10 },
         },
         scales: {
-          x: {
-            ...darkScaleDefaults(),
-            border: { color: GRID_COLOR },
-          },
-          yLeft: {
-            ...darkScaleDefaults(),
-            position: 'left',
-            min: 0,
-            max: 0.7,
-            border: { color: GRID_COLOR },
-            title: {
-              display: true,
-              text: 'Distance from approved behavior',
-              color: TICK_COLOR,
-              font: { family: FONT_FAMILY, size: 11 },
-            },
-          },
-          yRight: {
-            ...darkScaleDefaults({ grid: { display: false } }),
-            position: 'right',
-            min: 0,
-            max: 16,
-            border: { color: GRID_COLOR },
-            title: {
-              display: true,
-              text: 'CUSUM (cumulative drift)',
-              color: TICK_COLOR,
-              font: { family: FONT_FAMILY, size: 11 },
-            },
-          },
+          x: { ...dsc(), border:{ color:GRID } },
+          yLeft:  { ...dsc(), position:'left',  min:0, max:0.7, border:{color:GRID}, title:{display:true, text:'Distance from approved behavior', color:TICK, font:{family:FF,size:11}} },
+          yRight: { ...dsc({ grid:{ display:false } }), position:'right', min:0, max:16, border:{color:GRID}, title:{display:true, text:'CUSUM (cumulative drift)', color:TICK, font:{family:FF,size:11}} },
         },
       },
     });
   }
 
-  // ── Rebuild main chart with updated day count ─────────────────────────
   function updateMainChart(d, days) {
     if (!mainChart) { buildMainChart(d, days); return; }
-
-    const labels  = d.labels.slice(0, days);
-    const frozen  = d.frozen.slice(0, days);
-    const rolling = d.rolling.slice(0, days);
-    const drift   = rolling.map((v, i) => parseFloat((v - (d.frozen[i] || 0)).toFixed(4)));
-    const cusum   = d.cusum.slice(0, days);
-    const thresh  = Array(days).fill(d.threshold);
-
-    mainChart.data.labels             = labels;
-    mainChart.data.datasets[0].data   = frozen;
-    mainChart.data.datasets[1].data   = rolling;
-    mainChart.data.datasets[2].data   = drift;
-    mainChart.data.datasets[3].data   = cusum;
-    mainChart.data.datasets[4].data   = thresh;
+    const rolling = d.rolling.slice(0,days);
+    mainChart.data.labels           = d.labels.slice(0,days);
+    mainChart.data.datasets[0].data = d.frozen.slice(0,days);
+    mainChart.data.datasets[1].data = rolling;
+    mainChart.data.datasets[2].data = rolling.map((v,i) => parseFloat((v-(d.frozen[i]||0)).toFixed(4)));
+    mainChart.data.datasets[3].data = d.cusum.slice(0,days);
+    mainChart.data.datasets[4].data = Array(days).fill(d.threshold);
     mainChart.options.plugins.alertRegion.revealedDays = days;
     mainChart.update('active');
   }
 
-  // ── Build naive bar chart ────────────────────────────────────────────
   function buildNaiveChart(d, days) {
     const canvas = document.getElementById('dr-naive-canvas');
     if (naiveChart) naiveChart.destroy();
-
-    const n = Math.min(days, d.rolling.length);
-    const barLabels = d.labels.slice(1, n);
-    const deltas    = d.rolling.slice(1, n).map((v, i) =>
-      parseFloat((v - d.rolling[i]).toFixed(4))
-    );
-    const threshold  = d.naiveThreshold || 0.15;
-    const threshLine = Array(barLabels.length).fill(threshold);
-
+    const n      = Math.min(days, d.rolling.length);
+    const labels = d.labels.slice(1,n);
+    const deltas = d.rolling.slice(1,n).map((v,i) => parseFloat((v-d.rolling[i]).toFixed(4)));
+    const thr    = d.naiveThreshold || 0.15;
     naiveChart = new Chart(canvas, {
-      type: 'bar',
-      data: {
-        labels: barLabels,
-        datasets: [
-          {
-            label: 'Day-over-day change',
-            data: deltas,
-            backgroundColor: 'rgba(224,160,48,0.55)',
-            borderColor: '#e0a030',
-            borderWidth: 1,
-            borderRadius: 3,
-          },
-          {
-            label: 'Naive alert threshold',
-            data: threshLine,
-            type: 'line',
-            borderColor: 'rgba(239,230,218,0.5)',
-            borderDash: [4, 3],
-            borderWidth: 1.5,
-            pointRadius: 0,
-            fill: false,
-          },
-        ],
-      },
+      type:'bar',
+      data: { labels, datasets: [
+        { label:'Day-over-day change', data:deltas, backgroundColor:'rgba(224,160,48,0.55)', borderColor:'#e0a030', borderWidth:1, borderRadius:3 },
+        { label:'Naive alert threshold', data:Array(labels.length).fill(thr), type:'line', borderColor:'rgba(239,230,218,0.5)', borderDash:[4,3], borderWidth:1.5, pointRadius:0, fill:false },
+      ]},
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 300 },
+        responsive:true, maintainAspectRatio:false, animation:{duration:300},
         plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              color: TICK_COLOR,
-              font: { family: FONT_FAMILY, size: 10 },
-              usePointStyle: true,
-              padding: 10,
-            },
-          },
-          tooltip: {
-            backgroundColor: '#1a0a0e',
-            borderColor: '#b3122a',
-            borderWidth: 1,
-            titleColor: '#efe6da',
-            bodyColor: 'rgba(239,230,218,0.75)',
-            padding: 8,
-          },
+          legend:  { position:'bottom', labels:{ color:TICK, font:{family:FF,size:10}, usePointStyle:true, padding:10 } },
+          tooltip: { backgroundColor:'#1a0a0e', borderColor:'#b3122a', borderWidth:1, titleColor:'#efe6da', bodyColor:'rgba(239,230,218,0.75)', padding:8 },
         },
-        scales: {
-          x: darkScaleDefaults({ border: { color: GRID_COLOR } }),
-          y: {
-            ...darkScaleDefaults(),
-            min: 0,
-            max: threshold * 2,
-            border: { color: GRID_COLOR },
-          },
-        },
+        scales: { x:dsc({ border:{color:GRID} }), y:{ ...dsc(), min:0, max:thr*2, border:{color:GRID} } },
       },
     });
   }
 
   function updateNaiveChart(d, days) {
     if (!naiveChart) { buildNaiveChart(d, days); return; }
-    const n = Math.min(days, d.rolling.length);
-    const barLabels = d.labels.slice(1, n);
-    const deltas    = d.rolling.slice(1, n).map((v, i) =>
-      parseFloat((v - d.rolling[i]).toFixed(4))
-    );
-    const threshold  = d.naiveThreshold || 0.15;
-    const threshLine = Array(barLabels.length).fill(threshold);
-
-    naiveChart.data.labels           = barLabels;
+    const n      = Math.min(days, d.rolling.length);
+    const labels = d.labels.slice(1,n);
+    const deltas = d.rolling.slice(1,n).map((v,i) => parseFloat((v-d.rolling[i]).toFixed(4)));
+    naiveChart.data.labels           = labels;
     naiveChart.data.datasets[0].data = deltas;
-    naiveChart.data.datasets[1].data = threshLine;
+    naiveChart.data.datasets[1].data = Array(labels.length).fill(d.naiveThreshold||0.15);
     naiveChart.update('active');
   }
 
-  // ── Callouts ─────────────────────────────────────────────────────────
   function renderCallouts() {
     if (!scenario) return;
-    const d = scenario.drift;
-    calloutsEl.innerHTML = (d.callouts || []).map((c, i) => `
+    calloutsEl.innerHTML = (scenario.drift.callouts||[]).map((c,i) => `
       <div class="dr-callout-row" id="dr-callout-${i}">
-        <div class="dr-callout-num">${String(i + 1).padStart(2, '0')}</div>
+        <div class="dr-callout-num">${String(i+1).padStart(2,'0')}</div>
         <div class="dr-callout-text">${c.text}</div>
-      </div>
-    `).join('');
+      </div>`).join('');
   }
 
   function lightCallouts(days) {
     if (!scenario) return;
     const d = scenario.drift;
-    (d.callouts || []).forEach((c, i) => {
+    (d.callouts||[]).forEach((c,i) => {
       const el = document.getElementById(`dr-callout-${i}`);
       if (!el) return;
       if (days > c.index) {
-        el.classList.remove('lit', 'lit-alert');
+        el.classList.remove('lit','lit-alert');
         el.classList.add(c.index === d.alertIndex ? 'lit-alert' : 'lit');
       }
     });
   }
 
-  // ── Explainers ───────────────────────────────────────────────────────
   function renderExplainers() {
     if (!scenario) return;
-    const exps = scenario.drift.explainers || [];
-    explainersEl.innerHTML = exps.map(e => `
+    explainersEl.innerHTML = (scenario.drift.explainers||[]).map(e => `
       <div class="dr-explainer-card">
         <div class="dr-explainer-title">${e.title}</div>
         <div class="dr-explainer-text">${e.text}</div>
-      </div>
-    `).join('');
+      </div>`).join('');
   }
 
-  // ── Reveal step ──────────────────────────────────────────────────────
   function revealStep() {
     if (!scenario) return;
-    const d    = scenario.drift;
-    const total = d.labels.length;
-
+    const d = scenario.drift;
     revealed++;
     overlayEl.classList.add('hidden');
-
-    updateMainChart(d, revealed);
-    updateNaiveChart(d, revealed);
-    lightCallouts(revealed);
-
-    // Alert moment
+    updateMainChart(d, revealed); updateNaiveChart(d, revealed); lightCallouts(revealed);
     if (revealed > d.alertIndex) {
-      statusChipEl.textContent = `Drift detected at day ${d.alertIndex + 1}`;
+      statusChipEl.textContent = `Drift detected at day ${d.alertIndex+1}`;
       statusChipEl.classList.add('alert');
       mainPanelEl.classList.add('alert-flash');
       setTimeout(() => mainPanelEl.classList.remove('alert-flash'), 1200);
     }
-
-    // After last day, show naive status
-    if (revealed >= total) {
-      naiveStatEl.classList.add('visible');
-      return; // done
-    }
-
-    // Schedule next step
-    const interval = (800 / speed);
-    revealTimer = setTimeout(revealStep, interval);
+    if (revealed >= d.labels.length) { naiveStatEl.classList.add('visible'); return; }
+    revealTimer = setTimeout(revealStep, 800 / speed);
   }
 
-  // ── Public: init ─────────────────────────────────────────────────────
-  function drInit() {
-    renderCallouts();
-    renderExplainers();
-  }
+  function drInit() { renderCallouts(); renderExplainers(); }
 
-  // ── Public: start ─────────────────────────────────────────────────────
   function drStart() {
     if (started) return;
     started = true;
     if (!scenario) return;
-
-    const d = scenario.drift;
-    // Build charts at 1 day so axes are visible immediately
-    buildMainChart(d, 1);
-    buildNaiveChart(d, 1);
-    revealed = 1;
-    overlayEl.classList.add('hidden');
-    lightCallouts(1);
-
+    buildMainChart(scenario.drift, 1); buildNaiveChart(scenario.drift, 1);
+    revealed = 1; overlayEl.classList.add('hidden'); lightCallouts(1);
     revealTimer = setTimeout(revealStep, 800 / speed);
   }
 
-  // ── Public: onNavigate ───────────────────────────────────────────────
   function drOnNavigate() {
     if (!started) return;
-    // Resize charts in case canvas was hidden during layout
     if (mainChart)  mainChart.resize();
     if (naiveChart) naiveChart.resize();
   }
 
-  // ── Public: reset ────────────────────────────────────────────────────
   function drReset() {
     if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
     if (mainChart)  { mainChart.destroy();  mainChart  = null; }
     if (naiveChart) { naiveChart.destroy(); naiveChart = null; }
-
-    started  = false;
-    revealed = 0;
-
+    started = false; revealed = 0;
     overlayEl.classList.remove('hidden');
-    statusChipEl.textContent = 'Monitoring';
-    statusChipEl.classList.remove('alert');
+    statusChipEl.textContent = 'Monitoring'; statusChipEl.classList.remove('alert');
     naiveStatEl.classList.remove('visible');
     mainPanelEl.classList.remove('alert-flash');
-
-    renderCallouts(); // re-render dim callouts
+    renderCallouts();
   }
 
   return { init: drInit, start: drStart, onNavigate: drOnNavigate, reset: drReset };
@@ -1358,321 +1220,168 @@ const driftScreen = (() => {
 // ══════════════════════════════════════════════════════════════════════
 const chainScreen = (() => {
   const NS = 'http://www.w3.org/2000/svg';
-
-  // DOM
-  const svgEl       = document.getElementById('ch-svg');
-  const edgesG      = document.getElementById('ch-edges-g');
-  const nodesG      = document.getElementById('ch-nodes-g');
-  const packetsG    = document.getElementById('ch-packets-g');
-  const overlayTxt  = document.getElementById('ch-svg-overlay');
-  const captionEl   = document.getElementById('ch-caption');
-  const toggleWith  = document.getElementById('ch-toggle-with');
-  const toggleWithout = document.getElementById('ch-toggle-without');
-  const cntComp     = document.getElementById('ch-cnt-compromised');
-  const cntAff      = document.getElementById('ch-cnt-affected');
-  const cntCut      = document.getElementById('ch-cnt-cut');
-  const authListEl  = document.getElementById('ch-auth-list');
-  const logFeedEl   = document.getElementById('ch-log-feed');
+  const svgEl        = document.getElementById('ch-svg');
+  const edgesG       = document.getElementById('ch-edges-g');
+  const nodesG       = document.getElementById('ch-nodes-g');
+  const packetsG     = document.getElementById('ch-packets-g');
+  const overlayTxt   = document.getElementById('ch-svg-overlay');
+  const captionEl    = document.getElementById('ch-caption');
+  const toggleWith   = document.getElementById('ch-toggle-with');
+  const toggleWithout= document.getElementById('ch-toggle-without');
+  const cntComp      = document.getElementById('ch-cnt-compromised');
+  const cntAff       = document.getElementById('ch-cnt-affected');
+  const cntCut       = document.getElementById('ch-cnt-cut');
+  const authListEl   = document.getElementById('ch-auth-list');
+  const logFeedEl    = document.getElementById('ch-log-feed');
 
   const CAPTIONS = {
     with:    'Taint and authority are tracked across every agent-to-agent call',
     without: 'Illustrative: how one compromise could spread through the chain',
   };
 
-  // Node visual config by status
   const STATUS_CFG = {
-    healthy:     { fill: '#0d2218', stroke: '#2fa66a', textColor: '#2fa66a', dot: '#2fa66a'  },
-    watching:    { fill: '#2a2008', stroke: '#e0a030', textColor: '#e0a030', dot: '#e0a030'  },
-    restricted:  { fill: '#2a1208', stroke: '#e8742a', textColor: '#e8742a', dot: '#e8742a'  },
-    quarantined: { fill: '#2a0a10', stroke: '#e5384f', textColor: '#e5384f', dot: '#e5384f'  },
-    untrusted:   { fill: '#2a2208', stroke: '#e0a030', textColor: '#e0a030', dot: '#e0a030', dashed: true },
-    blocked:     { fill: '#2a0a10', stroke: '#e5384f', textColor: '#e5384f', dot: '#e5384f'  },
+    healthy:     { fill:'#0d2218', stroke:'#2fa66a', textColor:'#2fa66a', dot:'#2fa66a' },
+    watching:    { fill:'#2a2008', stroke:'#e0a030', textColor:'#e0a030', dot:'#e0a030' },
+    restricted:  { fill:'#2a1208', stroke:'#e8742a', textColor:'#e8742a', dot:'#e8742a' },
+    quarantined: { fill:'#2a0a10', stroke:'#e5384f', textColor:'#e5384f', dot:'#e5384f' },
+    untrusted:   { fill:'#2a2208', stroke:'#e0a030', textColor:'#e0a030', dot:'#e0a030', dashed:true },
+    blocked:     { fill:'#2a0a10', stroke:'#e5384f', textColor:'#e5384f', dot:'#e5384f' },
   };
 
-  const ICONS = {
-    doc:   '📄',
-    robot: '🤖',
-    cloud: '☁',
-  };
-
-  // state
-  let mode       = 'with';
-  let started    = false;
-  let stepIdx    = 0;
-  let stepTimer  = null;
-  let packetRAFs = [];
-  let logStart   = 0;
-
-  // ── SVG helpers ──────────────────────────────────────────────────────
-  function svgEl_(tag, attrs) {
-    const el = document.createElementNS(NS, tag);
-    Object.entries(attrs || {}).forEach(([k, v]) => el.setAttribute(k, v));
-    return el;
-  }
-
-  function txt(x, y, str, attrs) {
-    const el = svgEl_('text', Object.assign({ x, y, 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, attrs));
-    el.textContent = str;
-    return el;
-  }
-
-  // ── Node geometry ─────────────────────────────────────────────────────
+  const ICONS = { doc:'📄', robot:'🤖', cloud:'☁' };
   const NW = 190, NH = 78, NR = 14;
 
-  function nodeCx(n) { return n.x + NW / 2; }
-  function nodeCy(n) { return n.y + NH / 2; }
+  let mode='with', started=false, stepIdx=0, stepTimer=null, packetRAFs=[], logStart=0;
 
-  // Edge connection points (left or right side of nodes)
-  function edgePts(fromNode, toNode) {
-    const fx = fromNode.x + NW, fy = fromNode.y + NH / 2;
-    const tx = toNode.x,       ty = toNode.y + NH / 2;
-    return { fx, fy, tx, ty };
+  function svgEl_(tag, attrs) {
+    const el = document.createElementNS(NS, tag);
+    Object.entries(attrs||{}).forEach(([k,v]) => el.setAttribute(k,v));
+    return el;
   }
 
-  // ── Draw all nodes ───────────────────────────────────────────────────
-  function drawNodes(nodeStatuses) {
+  function nodeCx(n) { return n.x + NW/2; }
+  function nodeCy(n) { return n.y + NH/2; }
+
+  function edgePts(fn, tn) {
+    return { fx:fn.x+NW, fy:fn.y+NH/2, tx:tn.x, ty:tn.y+NH/2 };
+  }
+
+  function drawNodes(ns) {
     nodesG.innerHTML = '';
-    const chain = scenario.chain;
-
-    chain.nodes.forEach(n => {
-      const status = (nodeStatuses && nodeStatuses[n.id]) || 'healthy';
+    scenario.chain.nodes.forEach(n => {
+      const status = (ns&&ns[n.id]) || 'healthy';
       const cfg    = STATUS_CFG[status] || STATUS_CFG.healthy;
-      const g      = svgEl_('g', { id: `ch-node-${n.id}`, class: 'ch-node' });
-
-      // Glow filter
-      const glowFilter = (status === 'quarantined') ? 'url(#glow-red)'
-                       : (status === 'healthy')     ? ''
-                       : '';
-
-      // Background rect
-      const rect = svgEl_('rect', {
-        x: n.x, y: n.y, width: NW, height: NH, rx: NR, ry: NR,
-        fill: cfg.fill, stroke: cfg.stroke, 'stroke-width': cfg.dashed ? '1.5' : '1.5',
-        'stroke-dasharray': cfg.dashed ? '6 3' : 'none',
-        ...(glowFilter ? { filter: glowFilter } : {}),
-      });
-      if (status === 'quarantined') {
-        rect.style.animation = 'chPulse 2s ease-in-out infinite';
-      }
+      const g      = svgEl_('g', { id:`ch-node-${n.id}` });
+      const glowF  = status === 'quarantined' ? 'url(#glow-red)' : '';
+      const rect   = svgEl_('rect', { x:n.x, y:n.y, width:NW, height:NH, rx:NR, ry:NR,
+        fill:cfg.fill, stroke:cfg.stroke, 'stroke-width':'1.5',
+        'stroke-dasharray': cfg.dashed?'6 3':'none',
+        ...(glowF ? {filter:glowF} : {}) });
+      if (status==='quarantined') rect.style.animation='chPulse 2s ease-in-out infinite';
       g.appendChild(rect);
 
-      // Icon badge circle
-      const badge = svgEl_('circle', {
-        cx: n.x + 24, cy: n.y + NH / 2, r: 16,
-        fill: '#120608', stroke: cfg.stroke, 'stroke-width': '1',
-      });
+      const badge = svgEl_('circle',{ cx:n.x+24, cy:n.y+NH/2, r:16, fill:'#120608', stroke:cfg.stroke, 'stroke-width':'1' });
       g.appendChild(badge);
 
-      // Icon text
-      const icon = svgEl_('text', {
-        x: n.x + 24, y: n.y + NH / 2,
-        'text-anchor': 'middle', 'dominant-baseline': 'middle',
-        'font-size': '14',
-      });
-      icon.textContent = ICONS[n.icon] || '▪';
-      g.appendChild(icon);
+      const icon = svgEl_('text', { x:n.x+24, y:n.y+NH/2, 'text-anchor':'middle', 'dominant-baseline':'middle', 'font-size':'14' });
+      icon.textContent = ICONS[n.icon]||'▪'; g.appendChild(icon);
 
-      // Label
-      const label = svgEl_('text', {
-        x: n.x + 50, y: n.y + 26,
-        'text-anchor': 'start', 'dominant-baseline': 'middle',
-        'font-family': 'Oswald,sans-serif', 'font-size': '13',
-        'font-weight': '600', fill: cfg.textColor,
-      });
-      label.textContent = n.label;
-      g.appendChild(label);
+      const label = svgEl_('text', { x:n.x+50, y:n.y+26, 'text-anchor':'start', 'dominant-baseline':'middle', 'font-family':'Oswald,sans-serif','font-size':'13','font-weight':'600', fill:cfg.textColor });
+      label.textContent = n.label; g.appendChild(label);
 
-      // Subtitle
-      const sub = svgEl_('text', {
-        x: n.x + 50, y: n.y + 44,
-        'text-anchor': 'start', 'dominant-baseline': 'middle',
-        'font-family': 'Inter,sans-serif', 'font-size': '10',
-        fill: 'rgba(138,122,110,0.8)',
-      });
-      sub.textContent = n.subtitle || '';
-      g.appendChild(sub);
+      const sub = svgEl_('text', { x:n.x+50, y:n.y+44, 'text-anchor':'start', 'dominant-baseline':'middle', 'font-family':'Inter,sans-serif','font-size':'10', fill:'rgba(138,122,110,0.8)' });
+      sub.textContent = n.subtitle||''; g.appendChild(sub);
 
-      // Status dot
-      const dot = svgEl_('circle', {
-        cx: n.x + NW - 28, cy: n.y + NH - 16, r: 4,
-        fill: cfg.dot,
-      });
+      const dot = svgEl_('circle', { cx:n.x+NW-28, cy:n.y+NH-16, r:4, fill:cfg.dot });
       g.appendChild(dot);
 
-      // Status text
-      const statTxt = svgEl_('text', {
-        x: n.x + NW - 20, y: n.y + NH - 16,
-        'text-anchor': 'start', 'dominant-baseline': 'middle',
-        'font-family': 'Inter,sans-serif', 'font-size': '9',
-        'font-weight': '600',
-        fill: cfg.dot, 'text-transform': 'uppercase',
-      });
-      statTxt.textContent = status.toUpperCase();
-      g.appendChild(statTxt);
+      const statTxt = svgEl_('text', { x:n.x+NW-20, y:n.y+NH-16, 'text-anchor':'start', 'dominant-baseline':'middle', 'font-family':'Inter,sans-serif','font-size':'9','font-weight':'600', fill:cfg.dot });
+      statTxt.textContent = status.toUpperCase(); g.appendChild(statTxt);
 
       nodesG.appendChild(g);
     });
   }
 
-  // ── Draw all edges ───────────────────────────────────────────────────
-  function drawEdges(edgeStates) {
+  function drawEdges(es) {
     edgesG.innerHTML = '';
-    const chain = scenario.chain;
-
-    chain.edges.forEach(e => {
-      const fromNode = chain.nodes.find(n => n.id === e.from);
-      const toNode   = chain.nodes.find(n => n.id === e.to);
-      if (!fromNode || !toNode) return;
-
+    scenario.chain.edges.forEach(e => {
+      const fn = scenario.chain.nodes.find(n=>n.id===e.from);
+      const tn = scenario.chain.nodes.find(n=>n.id===e.to);
+      if (!fn||!tn) return;
       const key   = `${e.from}>${e.to}`;
-      const state = (edgeStates && edgeStates[key]) || 'normal';
-
-      const { fx, fy, tx, ty } = edgePts(fromNode, toNode);
-
-      const isPoison = state === 'poisoned';
-      const isCut    = state === 'cut';
-
-      const strokeColor = isCut ? '#e5384f' : isPoison ? '#e5384f' : '#3a1018';
-      const dashArr     = (isCut || isPoison) ? '6 3' : 'none';
-      const markerId    = isCut ? 'arr-cut' : isPoison ? 'arr-poison' : 'arr-normal';
-      const opacity     = (isCut || isPoison) ? '1' : '0.6';
-
+      const state = (es&&es[key])||'normal';
+      const { fx,fy,tx,ty } = edgePts(fn,tn);
+      const isP = state==='poisoned', isC = state==='cut';
+      const strokeColor = (isP||isC)?'#e5384f':'#3a1018';
+      const dashArr     = (isP||isC)?'6 3':'none';
+      const markerId    = isC?'arr-cut':isP?'arr-poison':'arr-normal';
       const g = svgEl_('g');
-
-      // Check if vertical (same x) or angled path needed
-      const line = svgEl_('line', {
-        x1: fx, y1: fy, x2: tx - 8, y2: ty,
-        stroke: strokeColor, 'stroke-width': (isCut || isPoison) ? '2' : '1.5',
-        'stroke-dasharray': dashArr,
-        'marker-end': `url(#${markerId})`,
-        opacity,
-      });
+      const line = svgEl_('line', { x1:fx,y1:fy,x2:tx-8,y2:ty, stroke:strokeColor,'stroke-width':(isP||isC)?'2':'1.5','stroke-dasharray':dashArr,'marker-end':`url(#${markerId})`,opacity:(isP||isC)?'1':'0.6' });
       g.appendChild(line);
-
-      // Scope badge
-      const mx = (fx + tx) / 2;
-      const my = (fy + ty) / 2;
-
-      const bgRect = svgEl_('rect', {
-        x: mx - 36, y: my - 9, width: 72, height: 18, rx: 4,
-        fill: '#1a0a0e', stroke: strokeColor, 'stroke-width': '0.8',
-        opacity: '0.9',
-      });
+      const mx=(fx+tx)/2, my=(fy+ty)/2;
+      const bgRect = svgEl_('rect', { x:mx-36,y:my-9,width:72,height:18,rx:4,fill:'#1a0a0e',stroke:strokeColor,'stroke-width':'0.8',opacity:'0.9' });
       g.appendChild(bgRect);
-
-      const scopeTxt = svgEl_('text', {
-        x: mx, y: my,
-        'text-anchor': 'middle', 'dominant-baseline': 'middle',
-        'font-family': 'Inter,sans-serif', 'font-size': '9',
-        fill: isCut || isPoison ? '#e5384f' : 'rgba(138,122,110,0.9)',
-      });
-      scopeTxt.textContent = isCut ? '✂ cut' : (e.scope || '');
-      g.appendChild(scopeTxt);
-
+      const scopeTxt = svgEl_('text', { x:mx,y:my,'text-anchor':'middle','dominant-baseline':'middle','font-family':'Inter,sans-serif','font-size':'9',fill:(isC||isP)?'#e5384f':'rgba(138,122,110,0.9)' });
+      scopeTxt.textContent = isC?'✂ cut':(e.scope||''); g.appendChild(scopeTxt);
       edgesG.appendChild(g);
     });
   }
 
-  // ── Animate packet along an edge ─────────────────────────────────────
-  function animatePacket(packetDef, onDone) {
-    if (!packetDef) { if (onDone) onDone(); return; }
-
-    const chain    = scenario.chain;
-    const fromNode = chain.nodes.find(n => n.id === packetDef.from);
-    const toNode   = chain.nodes.find(n => n.id === packetDef.to);
-    if (!fromNode || !toNode) { if (onDone) onDone(); return; }
-
-    const { fx, fy, tx, ty } = edgePts(fromNode, toNode);
-    const endX = packetDef.cut ? (fx + tx) / 2 : tx;
-    const endY = packetDef.cut ? (fy + ty) / 2 : ty;
-
-    const circle = svgEl_('circle', {
-      r: 6, fill: packetDef.poison ? '#e5384f' : '#3a5a4a',
-      opacity: '0.9',
-      ...(packetDef.poison ? { filter: 'url(#glow-red)' } : {}),
-    });
+  function animatePacket(pkt, onDone) {
+    if (!pkt) { if(onDone) onDone(); return; }
+    const fn = scenario.chain.nodes.find(n=>n.id===pkt.from);
+    const tn = scenario.chain.nodes.find(n=>n.id===pkt.to);
+    if (!fn||!tn) { if(onDone) onDone(); return; }
+    const { fx,fy,tx,ty } = edgePts(fn,tn);
+    const endX = pkt.cut?(fx+tx)/2:tx, endY = pkt.cut?(fy+ty)/2:ty;
+    const circle = svgEl_('circle', { r:6, fill:pkt.poison?'#e5384f':'#3a5a4a', opacity:'0.9', ...(pkt.poison?{filter:'url(#glow-red)'}:{}) });
     packetsG.appendChild(circle);
-
-    const startTime = performance.now();
-    const duration  = 800;
-
+    const startTime = performance.now(), dur = 800;
     function frame(now) {
-      const t    = Math.min((now - startTime) / duration, 1);
-      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-      circle.setAttribute('cx', fx + (endX - fx) * ease);
-      circle.setAttribute('cy', fy + (endY - fy) * ease);
-      if (t < 1) {
-        const id = requestAnimationFrame(frame);
-        packetRAFs.push(id);
-      } else {
-        circle.remove();
-        if (onDone) onDone();
-      }
+      const t=Math.min((now-startTime)/dur,1), ease=t<0.5?2*t*t:-1+(4-2*t)*t;
+      circle.setAttribute('cx', fx+(endX-fx)*ease);
+      circle.setAttribute('cy', fy+(endY-fy)*ease);
+      if (t<1) { const id=requestAnimationFrame(frame); packetRAFs.push(id); }
+      else { circle.remove(); if(onDone) onDone(); }
     }
-
-    const id = requestAnimationFrame(frame);
-    packetRAFs.push(id);
+    packetRAFs.push(requestAnimationFrame(frame));
   }
 
-  // ── Unaffected ring flash ────────────────────────────────────────────
-  function flashUnaffected(nodeIds) {
-    if (!nodeIds) return;
-    nodeIds.forEach(id => {
-      const g = document.getElementById(`ch-node-${id}`);
-      if (!g) return;
-      const chain   = scenario.chain;
-      const n       = chain.nodes.find(x => x.id === id);
+  function flashUnaffected(ids) {
+    if (!ids) return;
+    ids.forEach(id => {
+      const n = scenario.chain.nodes.find(x=>x.id===id);
       if (!n) return;
-      const ring = svgEl_('circle', {
-        cx: nodeCx(n), cy: nodeCy(n), r: NW / 2 + 4,
-        fill: 'none', stroke: '#2fa66a', 'stroke-width': '2',
-        opacity: '1',
-      });
+      const ring = svgEl_('circle', { cx:nodeCx(n),cy:nodeCy(n),r:NW/2+4,fill:'none',stroke:'#2fa66a','stroke-width':'2',opacity:'1' });
       nodesG.appendChild(ring);
-      let t = 0;
+      let t=0;
       function fade() {
-        t += 0.04;
-        ring.setAttribute('opacity', String(Math.max(0, 1 - t)));
-        if (t < 1) { const rid = requestAnimationFrame(fade); packetRAFs.push(rid); }
-        else ring.remove();
+        t+=0.04; ring.setAttribute('opacity', String(Math.max(0,1-t)));
+        if (t<1) { packetRAFs.push(requestAnimationFrame(fade)); } else ring.remove();
       }
-      const rid = requestAnimationFrame(fade);
-      packetRAFs.push(rid);
+      packetRAFs.push(requestAnimationFrame(fade));
     });
   }
 
-  // ── Update authority bars ─────────────────────────────────────────────
-  function updateAuthority(authority) {
-    if (!authority) return;
-    const chain = scenario.chain;
-    authListEl.innerHTML = chain.nodes.map(n => {
-      const pct = authority[n.id] !== undefined ? authority[n.id] : 100;
-      const col = pct === 0 ? 'var(--quarantined)' : pct < 60 ? 'var(--restricted)' : 'var(--ok)';
-      return `
-        <div class="ch-auth-row">
-          <span class="ch-auth-label">${n.label}</span>
-          <div class="ch-auth-bar-bg">
-            <div class="ch-auth-bar-fill" style="width:${pct}%;background:${col}"></div>
-          </div>
-        </div>
-      `;
+  function updateAuthority(auth) {
+    if (!auth) return;
+    authListEl.innerHTML = scenario.chain.nodes.map(n => {
+      const pct = auth[n.id]!==undefined ? auth[n.id] : 100;
+      const col = pct===0?'var(--quarantined)':pct<60?'var(--restricted)':'var(--ok)';
+      return `<div class="ch-auth-row"><span class="ch-auth-label">${n.label}</span><div class="ch-auth-bar-bg"><div class="ch-auth-bar-fill" style="width:${pct}%;background:${col}"></div></div></div>`;
     }).join('');
   }
 
-  // ── Update counters ───────────────────────────────────────────────────
-  function updateCounters(counters) {
-    if (!counters) return;
-    cntComp.textContent = counters[0];
-    cntAff.textContent  = counters[1];
-    cntCut.textContent  = counters[2];
-    cntComp.style.color = counters[0] > 0 ? 'var(--quarantined)' : 'var(--text)';
-    cntAff.style.color  = counters[1] > 0 ? 'var(--quarantined)' : 'var(--text)';
-    cntCut.style.color  = counters[2] > 0 ? 'var(--restricted)'  : 'var(--text)';
+  function updateCounters(c) {
+    if (!c) return;
+    cntComp.textContent=c[0]; cntAff.textContent=c[1]; cntCut.textContent=c[2];
+    cntComp.style.color = c[0]>0?'var(--quarantined)':'var(--text)';
+    cntAff.style.color  = c[1]>0?'var(--quarantined)':'var(--text)';
+    cntCut.style.color  = c[2]>0?'var(--restricted)':'var(--text)';
   }
 
-  // ── Append log entry ──────────────────────────────────────────────────
   function appendLog(text) {
-    const elapsed = ((performance.now() - logStart) / 1000).toFixed(1);
+    const elapsed = ((performance.now()-logStart)/1000).toFixed(1);
     const row = document.createElement('div');
     row.className = 'ch-log-entry';
     row.innerHTML = `<span class="ch-log-time">+${elapsed}s</span><span class="ch-log-text">${text}</span>`;
@@ -1680,134 +1389,65 @@ const chainScreen = (() => {
     logFeedEl.scrollTop = logFeedEl.scrollHeight;
   }
 
-  // ── Apply a step ─────────────────────────────────────────────────────
-  function applyStep(step, withAnimation) {
-    drawEdges(step.edgeState);
-    drawNodes(step.nodeStatus);
-    updateCounters(step.counters);
-    updateAuthority(step.authority);
-    if (step.log) appendLog(step.log);
-    if (step.unaffected) flashUnaffected(step.unaffected);
-  }
-
-  // ── Run sequence ─────────────────────────────────────────────────────
   function runStep() {
-    const steps = mode === 'with' ? scenario.chain.steps : scenario.chain.stepsWithout;
-    if (!steps || stepIdx >= steps.length) {
-      // done — unlock toggle
-      toggleWith.disabled    = false;
-      toggleWithout.disabled = false;
-      return;
-    }
-
-    const step = steps[stepIdx];
-    stepIdx++;
-
-    // Draw edges & nodes immediately, then animate packet, then schedule next
-    drawEdges(step.edgeState);
-    drawNodes(step.nodeStatus);
-    updateCounters(step.counters);
-    updateAuthority(step.authority);
+    const steps = mode==='with' ? scenario.chain.steps : scenario.chain.stepsWithout;
+    if (!steps || stepIdx >= steps.length) { toggleWith.disabled=false; toggleWithout.disabled=false; return; }
+    const step = steps[stepIdx++];
+    drawEdges(step.edgeState); drawNodes(step.nodeStatus);
+    updateCounters(step.counters); updateAuthority(step.authority);
     if (step.log) appendLog(step.log);
     if (step.unaffected) flashUnaffected(step.unaffected);
-
-    const interval = 1400 / speed;
-    if (step.packet) {
-      animatePacket(step.packet, () => {
-        stepTimer = setTimeout(runStep, interval - 800);
-      });
-    } else {
-      stepTimer = setTimeout(runStep, interval);
-    }
+    const interval = 1400/speed;
+    if (step.packet) animatePacket(step.packet, () => { stepTimer=setTimeout(runStep, interval-800); });
+    else stepTimer=setTimeout(runStep, interval);
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────
-  function chInit() {
-    toggleWith.addEventListener('click', () => {
-      if (toggleWith.disabled) return;
-      if (mode === 'with' && started) return;
-      mode = 'with';
-      toggleWith.classList.add('active');
-      toggleWithout.classList.remove('active');
-      captionEl.textContent = CAPTIONS.with;
-      if (started) restart();
-    });
-
-    toggleWithout.addEventListener('click', () => {
-      if (toggleWithout.disabled) return;
-      mode = 'without';
-      toggleWithout.classList.add('active');
-      toggleWith.classList.remove('active');
-      captionEl.textContent = CAPTIONS.without;
-      if (started) restart();
-    });
+  function clearAll() {
+    if (stepTimer) { clearTimeout(stepTimer); stepTimer=null; }
+    packetRAFs.forEach(id=>cancelAnimationFrame(id)); packetRAFs=[];
+    packetsG.innerHTML='';
   }
 
   function restart() {
-    clearAll();
-    started  = true;
-    stepIdx  = 0;
-    logStart = performance.now();
-    logFeedEl.innerHTML = '';
-    overlayTxt.textContent = '';
-    // Lock toggle while running
-    toggleWith.disabled    = true;
-    toggleWithout.disabled = true;
+    clearAll(); started=true; stepIdx=0; logStart=performance.now();
+    logFeedEl.innerHTML=''; overlayTxt.textContent='';
+    toggleWith.disabled=true; toggleWithout.disabled=true;
     runStep();
   }
 
-  // ── Public: start ─────────────────────────────────────────────────────
+  function chInit() {
+    toggleWith.addEventListener('click', () => {
+      if (toggleWith.disabled) return;
+      if (mode==='with'&&started) return;
+      mode='with'; toggleWith.classList.add('active'); toggleWithout.classList.remove('active');
+      captionEl.textContent=CAPTIONS.with; if(started) restart();
+    });
+    toggleWithout.addEventListener('click', () => {
+      if (toggleWithout.disabled) return;
+      mode='without'; toggleWithout.classList.add('active'); toggleWith.classList.remove('active');
+      captionEl.textContent=CAPTIONS.without; if(started) restart();
+    });
+  }
+
   function chStart(m) {
     if (started) return;
-    mode    = m || 'with';
-    started = true;
-    stepIdx = 0;
-    logStart = performance.now();
-    overlayTxt.textContent = '';
-    logFeedEl.innerHTML    = '';
-    toggleWith.disabled    = true;
-    toggleWithout.disabled = true;
+    mode=m||'with'; started=true; stepIdx=0; logStart=performance.now();
+    overlayTxt.textContent=''; logFeedEl.innerHTML='';
+    toggleWith.disabled=true; toggleWithout.disabled=true;
     runStep();
   }
 
-  // ── Public: onNavigate ────────────────────────────────────────────────
-  function chOnNavigate() {
-    // Nothing extra needed; SVG is always in DOM
-  }
+  function chOnNavigate() {}
 
-  // ── Clear animation state ─────────────────────────────────────────────
-  function clearAll() {
-    if (stepTimer)    { clearTimeout(stepTimer); stepTimer = null; }
-    packetRAFs.forEach(id => cancelAnimationFrame(id));
-    packetRAFs = [];
-    packetsG.innerHTML = '';
-  }
-
-  // ── Public: reset ─────────────────────────────────────────────────────
   function chReset() {
-    clearAll();
-    started  = false;
-    stepIdx  = 0;
-    mode     = 'with';
-
-    toggleWith.classList.add('active');
-    toggleWithout.classList.remove('active');
-    toggleWith.disabled    = false;
-    toggleWithout.disabled = false;
-    captionEl.textContent  = CAPTIONS.with;
-
-    edgesG.innerHTML       = '';
-    nodesG.innerHTML       = '';
-    logFeedEl.innerHTML    = '';
-    authListEl.innerHTML   = '';
-    cntComp.textContent    = '0';
-    cntAff.textContent     = '0';
-    cntCut.textContent     = '0';
-    cntComp.style.color    = 'var(--text)';
-    cntAff.style.color     = 'var(--text)';
-    cntCut.style.color     = 'var(--text)';
-
-    overlayTxt.textContent = 'Chain scenario not started yet';
+    clearAll(); started=false; stepIdx=0; mode='with';
+    toggleWith.classList.add('active'); toggleWithout.classList.remove('active');
+    toggleWith.disabled=false; toggleWithout.disabled=false;
+    captionEl.textContent=CAPTIONS.with;
+    edgesG.innerHTML=''; nodesG.innerHTML=''; logFeedEl.innerHTML=''; authListEl.innerHTML='';
+    cntComp.textContent='0'; cntAff.textContent='0'; cntCut.textContent='0';
+    cntComp.style.color=cntAff.style.color=cntCut.style.color='var(--text)';
+    overlayTxt.textContent='Chain scenario not started yet';
   }
 
   return { init: chInit, start: chStart, onNavigate: chOnNavigate, reset: chReset };

@@ -213,5 +213,33 @@
         "authority": { "pdf":100,"procurement-01":100,"orchestrator-03":100,"ext":100,"hr-assistant-02":100,"support-04":100 }
       }
     ]
+  },
+  "captions": [
+    { "t": 2,   "dur": 6,  "text": "A normal day: four agents, all healthy" },
+    { "t": 27,  "dur": 6,  "text": "A supplier PDF carries a hidden instruction" },
+    { "t": 43,  "dur": 6,  "text": "The agent obeys and reaches for HR salary files" },
+    { "t": 56,  "dur": 8,  "text": "Valid token, but behavior no longer matches the declared role" },
+    { "t": 68,  "dur": 7,  "text": "Action blocked. Token authority reduced to role minimum" },
+    { "t": 72,  "dur": 6,  "text": "Canary file touched — high-confidence compromise" },
+    { "t": 88,  "dur": 7,  "text": "Data exfiltration attempt detected. Agent quarantined" },
+    { "t": 102, "dur": 8,  "text": "A slow-drift attack: each day looks normal to a naive detector" },
+    { "t": 127, "dur": 8,  "text": "DriftGate contains the blast radius — other agents unaffected" }
+  ],
+  "chapters": [
+    { "t": 0,   "name": "Normal ops"   },
+    { "t": 28,  "name": "Injection"    },
+    { "t": 45,  "name": "Alert raised" },
+    { "t": 100, "name": "Drift"        },
+    { "t": 125, "name": "Chain"        }
+  ],
+  "summary": {
+    "title": "DriftGate stopped what permission checks missed",
+    "lines": [
+      "Procurement agent read an untrusted PDF and was immediately flagged",
+      "Role-contract violation blocked HR salary file access (score 85)",
+      "Canary hit and new exfiltration destination escalated to quarantine",
+      "Blast radius contained: 3 downstream agents never compromised",
+      "Naive permission check would have allowed every single action"
+    ]
   }
 }
